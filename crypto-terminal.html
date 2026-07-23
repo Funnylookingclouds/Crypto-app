@@ -45,6 +45,17 @@
   .status{ font-size:11.5px; color:var(--muted); font-family:'IBM Plex Mono',monospace; }
   .status b{ color:var(--text); }
 
+  .wallet-box{ display:flex; align-items:center; gap:10px; margin-top:10px; flex-wrap:wrap; }
+  .wallet-status{ font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--muted); }
+  .wallet-status.connected{ color:var(--green); }
+  .wallet-status.wrongchain{ color:var(--orange); }
+
+  .dex-box{ background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:12px; line-height:1.6; margin-top:8px; }
+  .dex-box .row{ display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; }
+  .dex-box button{ background:transparent; border:1px solid var(--amber-dim); color:var(--amber); font-family:'IBM Plex Mono',monospace; font-size:11px; padding:6px 9px; border-radius:5px; cursor:pointer; }
+  .dex-box button.primary{ background:var(--amber); color:#1a1200; border:none; font-weight:700; }
+  .dex-box .warn{ color:var(--muted); font-size:10.5px; margin-top:6px; line-height:1.5; }
+
   .netwarn{ display:none; margin:14px 20px 0; padding:12px 14px; border-radius:8px; background:rgba(232,163,61,0.08); border:1px solid var(--amber-dim); color:var(--amber); font-size:12.5px; font-family:'IBM Plex Mono',monospace; line-height:1.6; }
   .netwarn.show{ display:block; }
 
@@ -119,8 +130,8 @@
   <div class="brand"><span class="dot">◆</span> PORTFOLIO SIGNAL TERMINAL</div>
   <div class="sub">
     Composite rating blends trend (EMA 20/50, 1h+4h), momentum (RSI, StochRSI, MACD), volatility (Bollinger, ATR),
-    volume profile (POC), order-book skew, whale/wash-trade pattern checks, and news + social sentiment —
-    then smooths the result so it doesn't flip every refresh.
+    volume profile (POC), Ichimoku Cloud, Fibonacci golden-pocket retracement, order-book skew, whale/wash-trade
+    pattern checks, and news + social sentiment — then smooths the result so it doesn't flip every refresh.
   </div>
   <div class="controls">
     <input id="panicKey" type="text" placeholder="Optional: CryptoPanic API key (cryptopanic.com/developers/api)" />
@@ -132,6 +143,10 @@
     </select>
     <button id="refreshBtn">Refresh now</button>
     <button class="secondary" id="autoBtn">Auto: ON</button>
+  </div>
+  <div class="wallet-box">
+    <button class="secondary" id="connectWalletBtn" type="button">Connect Wallet</button>
+    <span class="wallet-status" id="walletStatus">Not connected — needed only for the on-chain trade links below (ETH/FLR/SGB)</span>
   </div>
   <div class="status" style="margin-top:10px;">Last update: <b id="lastUpdate">—</b></div>
   <div class="status" id="feargreed" style="margin-top:4px;">Market Fear &amp; Greed: —</div>
@@ -156,7 +171,11 @@
   The header's Fear &amp; Greed reading comes from CoinMarketCap's free keyless index (falling back to
   alternative.me) — it's a market-wide gauge, not a per-token one, since CoinMarketCap's API doesn't expose
   per-coin community sentiment. X/Twitter and Telegram require authenticated, server-side API access and are
-  only available through the companion <b>realtime_crypto_agent.py</b> script, not this browser page.
+  only available through the companion <b>realtime_crypto_agent.py</b> script, not this browser page.<br/><br/>
+  Wallet connect covers ETH, FLR, and SGB only — MetaMask can't reach BTC, XLM, HBAR, or SHX, since they aren't
+  EVM chains. Connecting only reads your address and network; it never holds keys or builds trades itself —
+  "Open [DEX]" hands off to that chain's own official swap interface (Uniswap / SparkDEX / BlazeSwap) in a new
+  tab, where you review and confirm the actual trade yourself.
 </footer>
 
 <script>
@@ -172,6 +191,17 @@ const PORTFOLIO = [
   { token:"FLR",  binance:"FLRUSDT",  kucoin:"FLR-USDT",  gate:"FLR_USDT",  bitrue:"FLRUSDT",  priority:["bitrue","kucoin","gate","binance"] },
   { token:"SGB",  binance:null,       kucoin:"SGB-USDT",  gate:"SGB_USDT",  bitrue:"SGBUSDT",  priority:["bitrue","gate","kucoin"] },
   { token:"SHX",  binance:null,       kucoin:"SHX-USDT",  gate:"SHX_USDT",  bitrue:"SHXUSDT",  priority:["kucoin","gate","bitrue"] },
+  { token:"GALA", binance:"GALAUSDT", kucoin:"GALA-USDT", gate:"GALA_USDT", bitrue:"GALAUSDT" },
+  { token:"LCX",  binance:null,       kucoin:"LCX-USDT",  gate:"LCX_USDT",  bitrue:"LCXUSDT",  priority:["kucoin","gate","bitrue"] },
+  { token:"KAVA", binance:"KAVAUSDT", kucoin:"KAVA-USDT", gate:"KAVA_USDT", bitrue:"KAVAUSDT" },
+  { token:"VET",  binance:"VETUSDT",  kucoin:"VET-USDT",  gate:"VET_USDT",  bitrue:"VETUSDT"  },
+  { token:"NEO",  binance:"NEOUSDT",  kucoin:"NEO-USDT",  gate:"NEO_USDT",  bitrue:"NEOUSDT"  },
+  { token:"ICP",  binance:"ICPUSDT",  kucoin:"ICP-USDT",  gate:"ICP_USDT",  bitrue:"ICPUSDT"  },
+  { token:"XDC",  binance:null,       kucoin:"XDC-USDT",  gate:"XDC_USDT",  bitrue:"XDCUSDT",  priority:["kucoin","gate","bitrue"] },
+  { token:"DASH", binance:"DASHUSDT", kucoin:"DASH-USDT", gate:"DASH_USDT", bitrue:"DASHUSDT" },
+  { token:"XTZ",  binance:"XTZUSDT",  kucoin:"XTZ-USDT",  gate:"XTZ_USDT",  bitrue:"XTZUSDT"  },
+  { token:"DODO", binance:"DODOUSDT", kucoin:"DODO-USDT", gate:"DODO_USDT", bitrue:null       },
+  { token:"IOTA", binance:"IOTAUSDT", kucoin:"IOTA-USDT", gate:"IOTA_USDT", bitrue:"IOTAUSDT" },
 ];
 
 let autoOn = true;
@@ -180,6 +210,134 @@ let lastPrices = {};
 let totalAttempts = 0;
 let totalFailures = 0;
 const STATE = {};
+
+/* ============================================================
+   WALLET / ON-CHAIN TRADE LINKS
+   MetaMask only speaks to EVM chains — of this portfolio that's just ETH, FLR
+   and SGB. We never construct raw swap calldata here: getting a router or
+   token contract address wrong could cost real funds. Instead we (a) connect
+   the wallet and help switch to the right network, then (b) hand off the
+   actual swap to each chain's own official, audited DEX front-end.
+   ============================================================ */
+const CHAIN_INFO = {
+  "0x1":  { name: "Ethereum Mainnet" },
+  "0xe":  { name: "Flare Mainnet" },
+  "0x13": { name: "Songbird Canary Network" },
+};
+const DEX_LINKS = {
+  ETH: { dex:"Uniswap",   url:"https://app.uniswap.org/swap", chainId:"0x1",  addParams:null },
+  FLR: { dex:"SparkDEX",  url:"https://sparkdex.ai/swap",     chainId:"0xe",
+    addParams:{ chainId:"0xe", chainName:"Flare Mainnet",
+      nativeCurrency:{ name:"Flare", symbol:"FLR", decimals:18 },
+      rpcUrls:["https://flare-api.flare.network/ext/C/rpc"],
+      blockExplorerUrls:["https://flare-explorer.flare.network/"] } },
+  SGB: { dex:"BlazeSwap", url:"https://app.blazeswap.xyz/swap/", chainId:"0x13",
+    addParams:{ chainId:"0x13", chainName:"Songbird Canary-Network",
+      nativeCurrency:{ name:"Songbird", symbol:"SGB", decimals:18 },
+      rpcUrls:["https://songbird-api.flare.network/ext/C/rpc"],
+      blockExplorerUrls:["https://songbird-explorer.flare.network/"] } },
+};
+
+const wallet = { address: null, chainId: null };
+
+function shortAddr(a){ return a ? a.slice(0,6) + "…" + a.slice(-4) : ""; }
+
+function updateWalletUI(){
+  const el = document.getElementById("walletStatus");
+  const btn = document.getElementById("connectWalletBtn");
+  if(!wallet.address){
+    el.textContent = "Not connected — needed only for the on-chain trade links below (ETH/FLR/SGB)";
+    el.className = "wallet-status";
+    btn.textContent = "Connect Wallet";
+  }else{
+    const chainName = (CHAIN_INFO[wallet.chainId] || {}).name || `Unrecognized chain (${wallet.chainId})`;
+    el.textContent = `${shortAddr(wallet.address)} on ${chainName}`;
+    el.className = "wallet-status connected";
+    btn.textContent = "Connected";
+  }
+  Object.keys(DEX_LINKS).forEach(renderDexBox);
+}
+
+async function connectWallet(){
+  if(typeof window.ethereum === "undefined"){
+    document.getElementById("walletStatus").textContent =
+      "No wallet detected — open this page in a MetaMask-enabled browser, or use MetaMask's built-in browser.";
+    return;
+  }
+  try{
+    const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+    wallet.address = accounts[0];
+    wallet.chainId = await window.ethereum.request({ method: "eth_chainId" });
+    updateWalletUI();
+  }catch(e){
+    document.getElementById("walletStatus").textContent = "Connection declined or failed: " + e.message;
+  }
+}
+
+async function switchToChain(token){
+  const cfg = DEX_LINKS[token];
+  if(!cfg || typeof window.ethereum === "undefined") return;
+  try{
+    await window.ethereum.request({ method:"wallet_switchEthereumChain", params:[{ chainId: cfg.chainId }] });
+    wallet.chainId = cfg.chainId;
+    updateWalletUI();
+  }catch(switchErr){
+    if(switchErr.code === 4902 && cfg.addParams){
+      try{
+        await window.ethereum.request({ method:"wallet_addEthereumChain", params:[cfg.addParams] });
+        wallet.chainId = cfg.chainId;
+        updateWalletUI();
+      }catch(addErr){
+        document.getElementById("dex-msg-"+token).textContent = "Could not add network: " + addErr.message;
+      }
+    }else{
+      document.getElementById("dex-msg-"+token).textContent = "Could not switch network: " + switchErr.message;
+    }
+  }
+}
+
+function openDex(token){
+  const cfg = DEX_LINKS[token];
+  if(cfg) window.open(cfg.url, "_blank", "noopener");
+}
+
+function renderDexBox(token){
+  const box = document.getElementById("dex-box-"+token);
+  if(!box) return;
+  const cfg = DEX_LINKS[token];
+  const onRightChain = wallet.address && wallet.chainId === cfg.chainId;
+  const st = STATE[token];
+  const bias = st && st.lastReco && st.lastReco.bias && st.lastReco.bias !== "none" ? st.lastReco.bias.toUpperCase() : null;
+
+  let switchBtn = "";
+  if(wallet.address && !onRightChain){
+    switchBtn = `<button onclick="switchToChain('${token}')">Switch to ${CHAIN_INFO[cfg.chainId].name}</button>`;
+  }
+
+  box.innerHTML = `
+    <div>${bias ? `Current bias: <b>${bias}</b> — ` : ""}On-chain trades for $${token} happen on <b>${cfg.dex}</b> (${CHAIN_INFO[cfg.chainId].name}).</div>
+    <div class="row">
+      ${switchBtn}
+      <button class="primary" onclick="openDex('${token}')">Open ${cfg.dex} ↗</button>
+    </div>
+    <div class="warn" id="dex-msg-${token}">
+      This opens ${cfg.dex}'s own official site in a new tab — this page never holds your keys or builds the swap
+      itself. Always verify the token contract address and price on ${cfg.dex} before confirming in your wallet.
+    </div>
+  `;
+}
+
+if(typeof window.ethereum !== "undefined"){
+  window.ethereum.on && window.ethereum.on("accountsChanged", (accs)=>{
+    wallet.address = accs[0] || null;
+    updateWalletUI();
+  });
+  window.ethereum.on && window.ethereum.on("chainChanged", (chainId)=>{
+    wallet.chainId = chainId;
+    updateWalletUI();
+  });
+}
+
 
 /* ============================================================
    NETWORK HELPERS
@@ -478,6 +636,48 @@ function computeSpreadPct(depth){
   return ((bestAsk-bestBid)/mid)*100;
 }
 
+/* Ichimoku Cloud: classic 9/26/52 periods. Simplified for scoring purposes —
+   we use the current (non-forward-shifted) cloud position rather than a full
+   plotted cloud, which is enough to gauge trend/momentum agreement. */
+function computeIchimoku(highs, lows, closes){
+  const donchianMid = (period)=>{
+    const h = Math.max(...highs.slice(-period));
+    const l = Math.min(...lows.slice(-period));
+    return (h+l)/2;
+  };
+  const tenkan = donchianMid(9);
+  const kijun  = donchianMid(26);
+  const spanA  = (tenkan+kijun)/2;
+  const spanB  = donchianMid(52);
+  const price  = last(closes);
+  const cloudTop = Math.max(spanA, spanB);
+  const cloudBottom = Math.min(spanA, spanB);
+  let position = "inside cloud";
+  if(price > cloudTop) position = "above cloud";
+  else if(price < cloudBottom) position = "below cloud";
+  const vote = (tenkan>kijun && price>cloudTop) ? 1 : (tenkan<kijun && price<cloudBottom) ? -1 : 0;
+  return { tenkan, kijun, spanA, spanB, cloudTop, cloudBottom, position, vote };
+}
+
+/* Fibonacci retracement off the same 20-candle swing used for support/resistance.
+   Classic "golden pocket" strategy: a pullback into the 50%-61.8% zone that agrees
+   with the prevailing trend is a higher-probability continuation entry. */
+function computeFibonacci(swingLow, swingHigh, price, trend1h){
+  const diff = swingHigh - swingLow;
+  const levels = {
+    l236: swingHigh - diff*0.236,
+    l382: swingHigh - diff*0.382,
+    l500: swingHigh - diff*0.5,
+    l618: swingHigh - diff*0.618,
+    l786: swingHigh - diff*0.786,
+  };
+  const zoneLo = Math.min(levels.l618, levels.l500);
+  const zoneHi = Math.max(levels.l618, levels.l500);
+  const inGoldenPocket = price>=zoneLo && price<=zoneHi;
+  const vote = inGoldenPocket ? trend1h : 0;
+  return { ...levels, inGoldenPocket, vote };
+}
+
 /* ============================================================
    WHALE / WASH-TRADE FLAG + RISK INDICATOR
    ============================================================ */
@@ -545,6 +745,12 @@ function scoreAsset(bundle){
   const vwapVal = rollingVWAP(h1,l1,c1,v1);
   const vp = computeVolumeProfile(h1,l1,c1,v1,12);
 
+  const swingHigh = Math.max(...h1.slice(-20));
+  const swingLow  = Math.min(...l1.slice(-20));
+
+  const ichimoku = computeIchimoku(h1, l1, c1);
+  const fib = computeFibonacci(swingLow, swingHigh, lastClose, trend1h);
+
   let obVote = 0, obImbalance = null;
   if(depth && depth.bids.length && depth.asks.length){
     const bidVol = depth.bids.reduce((a,b)=>a+b[1],0);
@@ -560,6 +766,8 @@ function scoreAsset(bundle){
     { name:"StochRSI",   val:stochVote, weight:0.75 },
     { name:"MACD",       val:macdVote, weight:1 },
     { name:"Bollinger",  val:bbVote,   weight:0.75 },
+    { name:"Ichimoku",   val:ichimoku.vote, weight: ichimoku.vote===0 ? 0 : 1 },
+    { name:"Fib golden pocket", val:fib.vote, weight: fib.vote===0 ? 0 : 1 },
   ];
   if(obImbalance!==null) votes.push({ name:"Order-book", val:obVote, weight:1 });
 
@@ -567,10 +775,7 @@ function scoreAsset(bundle){
   votes.forEach(v=>{ total += v.val*v.weight; wsum += v.weight; });
   const rawScore = wsum>0 ? (total/wsum)*100 : 0;
 
-  const swingHigh = Math.max(...h1.slice(-20));
-  const swingLow  = Math.min(...l1.slice(-20));
-
-  return { rawScore, votes, rsiVal, stochRsiVal, macdHist:hLast, bb, atrVal, vwapVal, poc:vp.poc, trend1h, trend4h, obImbalance, swingHigh, swingLow };
+  return { rawScore, votes, rsiVal, stochRsiVal, macdHist:hLast, bb, atrVal, vwapVal, poc:vp.poc, trend1h, trend4h, obImbalance, swingHigh, swingLow, ichimoku, fib };
 }
 
 function labelFromScore(score, prevLabel){
@@ -631,6 +836,8 @@ function buildOverlayLines(scored, reco){
   lines.push({ value:scored.poc, color:"#E8A33D", label:"POC", dash:[1,3] });
   lines.push({ value:scored.swingHigh, color:"#7C8B9C", label:"R", dash:[5,5] });
   lines.push({ value:scored.swingLow,  color:"#7C8B9C", label:"S", dash:[5,5] });
+  lines.push({ value:scored.fib.l618, color:"#8B7FD6", label:"Fib 61.8", dash:[2,4] });
+  lines.push({ value:scored.fib.l500, color:"#8B7FD6", label:"Fib 50", dash:[2,4] });
   return lines;
 }
 
@@ -723,6 +930,8 @@ function ensureCards(){
 
         <div class="chart-label">Suggested levels</div>
         <div class="reco-box" id="reco-${t}">—</div>
+
+        <div class="dex-box" id="dex-box-${t}" style="display:${DEX_LINKS[t] ? "block" : "none"};"></div>
       </div>
     `;
     grid.appendChild(el);
@@ -916,6 +1125,8 @@ function renderAssetCard(asset, bundle, scored, sent, smoothed, label, labelSinc
     <div><span>ATR(14)</span><b>${scored.atrVal.toFixed(6)}</b></div>
     <div><span>VWAP (rolling)</span><b>$${formatPrice(scored.vwapVal)}</b></div>
     <div><span>Volume POC</span><b>$${formatPrice(scored.poc)}</b></div>
+    <div><span>Ichimoku</span><b>${scored.ichimoku.position}</b></div>
+    <div><span>Fib golden pocket</span><b>$${formatPrice(Math.min(scored.fib.l618,scored.fib.l500))}\u2013$${formatPrice(Math.max(scored.fib.l618,scored.fib.l500))}${scored.fib.inGoldenPocket?" (in zone)":""}</b></div>
     <div><span>1h / 4h trend</span><b>${scored.trend1h>0?"up":"down"} / ${scored.trend4h===0?"n/a":(scored.trend4h>0?"up":"down")}</b></div>
     <div><span>Order-book skew</span><b>${scored.obImbalance===null?"n/a":(scored.obImbalance*100).toFixed(1)+"%"}</b></div>
     <div><span>Support / Resist.</span><b>$${formatPrice(scored.swingLow)} / $${formatPrice(scored.swingHigh)}</b></div>
@@ -939,6 +1150,7 @@ function renderAssetCard(asset, bundle, scored, sent, smoothed, label, labelSinc
   STATE[t].lastBundle = bundle;
   STATE[t].lastScored = scored;
   STATE[t].lastReco = reco;
+  if(DEX_LINKS[t]) renderDexBox(t);
   if(document.getElementById("details-"+t).classList.contains("open")) renderCharts(t);
 }
 
@@ -1046,6 +1258,7 @@ function scheduleAuto(){
 }
 
 document.getElementById('refreshBtn').addEventListener('click', refreshAll);
+document.getElementById('connectWalletBtn').addEventListener('click', connectWallet);
 document.getElementById('interval').addEventListener('change', scheduleAuto);
 document.getElementById('autoBtn').addEventListener('click', (e)=>{
   autoOn = !autoOn;

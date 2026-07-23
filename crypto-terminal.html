@@ -108,6 +108,14 @@
 
   .reason{ font-size:12px; color:var(--muted); line-height:1.5; }
 
+  .longterm-badge{ font-size:11.5px; font-family:'IBM Plex Mono',monospace; color:var(--muted); border-top:1px dashed var(--line); padding-top:7px; line-height:1.5; }
+  .longterm-badge b{ color:var(--text); }
+  .longterm-badge.bottom-forming b{ color:var(--amber); }
+  .longterm-badge.bottom-strong b{ color:var(--green); }
+  .confluence-note{ font-size:11.5px; border-radius:6px; padding:8px 10px; margin-top:6px; line-height:1.5; }
+  .confluence-note.confluence{ background:rgba(62,207,142,0.12); border:1px solid rgba(62,207,142,0.4); color:var(--green); }
+  .confluence-note.conflict{ background:rgba(255,138,92,0.12); border:1px solid rgba(255,138,92,0.4); color:var(--orange); }
+
   .detail-toggle{ background:transparent; border:1px solid var(--line); color:var(--amber); font-family:'IBM Plex Mono',monospace; font-size:11.5px; padding:8px; border-radius:6px; cursor:pointer; width:100%; }
   .details{ display:none; margin-top:4px; border-top:1px dashed var(--line); padding-top:10px; }
   .details.open{ display:block; }
@@ -139,7 +147,9 @@
     Composite rating blends trend (EMA 20/50, 1h+4h, discounted by ADX when the market is choppy), momentum
     (RSI, StochRSI, MACD), volatility (Bollinger, ATR), volume profile (POC), Ichimoku Cloud, Fibonacci golden-pocket
     retracement, order-book skew, futures funding rate + open interest, whale/wash-trade checks, and news + social
-    sentiment — then smooths the result so it doesn't flip every refresh.
+    sentiment — then smooths the result so it doesn't flip every refresh. A separate daily-candle signal looks for
+    genuine bottoming patterns (oversold RSI recovery, capitulation volume, deep drawdowns) and flags when it
+    agrees or conflicts with the hourly signal.
   </div>
   <div class="controls">
     <input id="panicKey" type="text" placeholder="Optional: CryptoPanic API key (cryptopanic.com/developers/api)" />
@@ -516,7 +526,7 @@ function last(arr){ return arr[arr.length-1]; }
 async function ohlcv_binance(sym, interval, limit){
   const klines = await fetchJSON(`https://api.binance.com/api/v3/klines?symbol=${sym}&interval=${interval}&limit=${limit}`);
   if(!Array.isArray(klines) || klines.length < 5) throw new Error("insufficient candle data");
-  return { closes:klines.map(k=>parseFloat(k[4])), highs:klines.map(k=>parseFloat(k[2])), lows:klines.map(k=>parseFloat(k[3])), vols:klines.map(k=>parseFloat(k[5])) };
+  return { opens:klines.map(k=>parseFloat(k[1])), closes:klines.map(k=>parseFloat(k[4])), highs:klines.map(k=>parseFloat(k[2])), lows:klines.map(k=>parseFloat(k[3])), vols:klines.map(k=>parseFloat(k[5])) };
 }
 async function price_binance(sym){
   const t = await fetchJSON(`https://api.binance.com/api/v3/ticker/24hr?symbol=${sym}`);
@@ -528,15 +538,15 @@ async function depth_binance(sym){
 }
 
 async function ohlcv_kucoin(sym, interval, limit){
-  const map = {"1h":"1hour","4h":"4hour"};
+  const map = {"1h":"1hour","4h":"4hour","1d":"1day"};
   const kcInterval = map[interval] || interval;
   const now = Math.floor(Date.now()/1000);
-  const stepSeconds = interval === "4h" ? 3600*4 : 3600;
+  const stepSeconds = interval==="4h" ? 3600*4 : interval==="1d" ? 86400 : 3600;
   const from = now - stepSeconds*(limit+5);
   const klines = await fetchJSON(`https://api.kucoin.com/api/v1/market/candles?type=${kcInterval}&symbol=${sym}&startAt=${from}&endAt=${now}`);
   if(!klines.data || klines.data.length < 5) throw new Error("insufficient candle data");
   const rows = [...klines.data].reverse();
-  return { closes:rows.map(r=>parseFloat(r[2])), highs:rows.map(r=>parseFloat(r[3])), lows:rows.map(r=>parseFloat(r[4])), vols:rows.map(r=>parseFloat(r[5])) };
+  return { opens:rows.map(r=>parseFloat(r[1])), closes:rows.map(r=>parseFloat(r[2])), highs:rows.map(r=>parseFloat(r[3])), lows:rows.map(r=>parseFloat(r[4])), vols:rows.map(r=>parseFloat(r[5])) };
 }
 async function price_kucoin(sym){
   const stats = await fetchJSON(`https://api.kucoin.com/api/v1/market/stats?symbol=${sym}`);
@@ -551,7 +561,7 @@ async function depth_kucoin(sym){
 async function ohlcv_gate(sym, interval, limit){
   const klines = await fetchJSON(`https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=${sym}&interval=${interval}&limit=${limit}`);
   if(!Array.isArray(klines) || klines.length < 5) throw new Error("insufficient candle data");
-  return { closes:klines.map(k=>parseFloat(k[2])), highs:klines.map(k=>parseFloat(k[3])), lows:klines.map(k=>parseFloat(k[4])), vols:klines.map(k=>parseFloat(k[1])) };
+  return { opens:klines.map(k=>parseFloat(k[5])), closes:klines.map(k=>parseFloat(k[2])), highs:klines.map(k=>parseFloat(k[3])), lows:klines.map(k=>parseFloat(k[4])), vols:klines.map(k=>parseFloat(k[1])) };
 }
 async function price_gate(sym){
   const t = await fetchJSON(`https://api.gateio.ws/api/v4/spot/tickers?currency_pair=${sym}`);
@@ -566,7 +576,7 @@ async function depth_gate(sym){
 async function ohlcv_bitrue(sym, interval, limit){
   const klines = await fetchJSON(`https://openapi.bitrue.com/api/v1/klines?symbol=${sym}&interval=${interval}&limit=${limit}`);
   if(!Array.isArray(klines) || klines.length < 5) throw new Error("insufficient candle data");
-  return { closes:klines.map(k=>parseFloat(k[4])), highs:klines.map(k=>parseFloat(k[2])), lows:klines.map(k=>parseFloat(k[3])), vols:klines.map(k=>parseFloat(k[5])) };
+  return { opens:klines.map(k=>parseFloat(k[1])), closes:klines.map(k=>parseFloat(k[4])), highs:klines.map(k=>parseFloat(k[2])), lows:klines.map(k=>parseFloat(k[3])), vols:klines.map(k=>parseFloat(k[5])) };
 }
 async function price_bitrue(sym){
   const t = await fetchJSON(`https://openapi.bitrue.com/api/v1/ticker/24hr?symbol=${sym}`);
@@ -598,11 +608,12 @@ async function fetchAssetBundle(asset){
     const sym = asset[key];
     try{
       const ohlcv1h = await ex.ohlcv(sym, "1h", 60);
-      const rest = await Promise.allSettled([ ex.ohlcv(sym, "4h", 60), ex.price(sym), ex.depth(sym) ]);
+      const rest = await Promise.allSettled([ ex.ohlcv(sym, "4h", 60), ex.ohlcv(sym, "1d", 260), ex.price(sym), ex.depth(sym) ]);
       const ohlcv4h = rest[0].status === "fulfilled" ? rest[0].value : null;
-      const price   = rest[1].status === "fulfilled" ? rest[1].value : last(ohlcv1h.closes);
-      const depth   = rest[2].status === "fulfilled" ? rest[2].value : null;
-      return { exchangeName: ex.name, ohlcv1h, ohlcv4h, price, depth };
+      const ohlcv1d = rest[1].status === "fulfilled" ? rest[1].value : null;
+      const price   = rest[2].status === "fulfilled" ? rest[2].value : last(ohlcv1h.closes);
+      const depth   = rest[3].status === "fulfilled" ? rest[3].value : null;
+      return { exchangeName: ex.name, ohlcv1h, ohlcv4h, ohlcv1d, price, depth };
     }catch(e){
       errors.push(`${ex.name}: ${e.message}`);
     }
@@ -954,6 +965,114 @@ function computeRisk(atrPct, spreadPct, whaleFlagged, exchangeName){
 /* ============================================================
    COMPOSITE SCORING
    ============================================================ */
+/* ============================================================
+   LONG-TERM BOTTOM SIGNAL (daily candles)
+   Deliberately separate from the hourly composite score above. The hourly
+   score answers "what does the next few hours/days look like"; this answers
+   "does this look like a genuine multi-week bottom, or still a falling knife".
+   Combining both is a classic multi-timeframe approach: the daily signal sets
+   the bias/context (is this a place worth buying at all), the hourly signal
+   times the entry. Neither is blended into the other's number on purpose —
+   the value is seeing where they agree or disagree, not hiding that in an
+   averaged score.
+   ============================================================ */
+function computeRSISeriesAligned(closes, period=14){
+  const raw = computeRSISeries(closes, period);
+  const aligned = new Array(closes.length).fill(null);
+  for(let i=0;i<raw.length;i++){ aligned[period+i] = raw[i]; }
+  return aligned;
+}
+
+function findCapitulation(opens, highs, lows, closes, vols){
+  const n = closes.length;
+  const scanStart = Math.max(31, n-10);
+  if(n < 41) return false;
+  const baseline = vols.slice(Math.max(0,n-40), n-10);
+  const avgVol = baseline.length ? baseline.reduce((a,b)=>a+b,0)/baseline.length : 0;
+  if(avgVol<=0) return false;
+  for(let i=scanStart;i<n;i++){
+    const isRedDay = closes[i] < opens[i];
+    const volSpike = vols[i] > avgVol*2.5;
+    if(isRedDay && volSpike && last(closes) > closes[i]){
+      return true;
+    }
+  }
+  return false;
+}
+
+function computeLongTermSignal(ohlcv1d){
+  if(!ohlcv1d || !ohlcv1d.closes || ohlcv1d.closes.length < 60){
+    return { available:false, label:"Insufficient daily history", score:0, reasons:[] };
+  }
+  const { opens:o, highs:h, lows:l, closes:c, vols:v } = ohlcv1d;
+  const n = c.length;
+  const priceNow = last(c);
+
+  const ema50d = ema(c, Math.min(50, n-1));
+  const ema200d = ema(c, Math.min(200, n-1));
+  const rsiSeries = computeRSISeriesAligned(c, 14);
+  const rsiNow = rsiSeries[n-1] != null ? rsiSeries[n-1] : 50;
+
+  const lookbackHigh = Math.min(90, n);
+  const recentHigh = Math.max(...h.slice(-lookbackHigh));
+  const drawdownPct = recentHigh>0 ? ((priceNow-recentHigh)/recentHigh)*100 : 0;
+
+  const lookbackLow = Math.min(30, n);
+  const recentLow = Math.min(...l.slice(-lookbackLow));
+  const nearLow = recentLow>0 && ((priceNow-recentLow)/recentLow)*100 <= 15;
+
+  const scanWindow = rsiSeries.slice(-20).filter(x=>x!=null);
+  const minRsiRecent = scanWindow.length ? Math.min(...scanWindow) : 50;
+  const oversoldRecovery = minRsiRecent<30 && rsiNow>40 && nearLow;
+
+  const capitulation = findCapitulation(o,h,l,c,v);
+  const priceAboveEma50 = priceNow > last(ema50d);
+  const belowLongTermMA = priceNow < last(ema200d);
+
+  const reasons = [];
+  let score = 0;
+  if(oversoldRecovery){
+    score += 40;
+    reasons.push("Daily RSI dipped under 30 and is recovering while price is still near its 30-day low — classic early-bottom pattern.");
+  }
+  if(capitulation){
+    score += 30;
+    reasons.push("A high-volume down day (capitulation-style flush) in the last ~10 days has since been recovered above.");
+  }
+  if(nearLow && drawdownPct < -20){
+    score += 15;
+    reasons.push(`Price is ${Math.abs(drawdownPct).toFixed(0)}% below its 90-day high and close to the 30-day low — a real, not shallow, pullback.`);
+  }
+  if(priceAboveEma50 && belowLongTermMA){
+    score += 15;
+    reasons.push("Price has reclaimed the 50-day average while still under the 200-day average — an early reversal signature, not yet a confirmed bull trend.");
+  }
+  score = Math.min(100, score);
+
+  let label;
+  if(score>=55) label = "Strong bottom signal";
+  else if(score>=25) label = "Possible bottom forming";
+  else label = "No bottom signal";
+
+  return { available:true, score, label, reasons, rsiNow, drawdownPct, ema50:last(ema50d), ema200:last(ema200d) };
+}
+
+function computeConfluence(shortLabel, longTerm){
+  if(!longTerm.available) return { type:"none", text:"Long-term daily history unavailable for this asset yet." };
+  const shortBullish = shortLabel==="Buy" || shortLabel==="Strong Buy";
+  const shortBearish = shortLabel==="Sell" || shortLabel==="Strong Sell";
+  if(shortBullish && longTerm.score>=25){
+    return { type:"confluence", text:"🎯 Confluence: short-term (hourly) and long-term (daily) both point bullish — this is the higher-confidence setup, not either signal alone." };
+  }
+  if(shortBearish && longTerm.score>=55){
+    return { type:"conflict", text:"⚠️ Mixed timeframes: hourly signal says sell while the daily chart shows a possible bottom forming — this disagreement is exactly when mistimed entries/exits happen." };
+  }
+  if(shortBearish && longTerm.score<25){
+    return { type:"agree-bearish", text:"Short-term and long-term agree there's no bottom in sight yet." };
+  }
+  return { type:"none", text:"No strong agreement or conflict between timeframes right now." };
+}
+
 function scoreAsset(bundle){
   const { ohlcv1h, ohlcv4h, depth } = bundle;
   const c1 = ohlcv1h.closes, h1 = ohlcv1h.highs, l1 = ohlcv1h.lows, v1 = ohlcv1h.vols;
@@ -1153,12 +1272,16 @@ function createCardElement(a, isCustom){
     <div class="gauge-meta"><span id="score-${t}">score —</span><span id="stable-${t}">—</span></div>
 
     <div class="reason" id="reason-${t}">Fetching live data…</div>
+    <div class="longterm-badge" id="longterm-${t}">Long-term (daily): —</div>
 
     <button class="detail-toggle" id="toggle-${t}" type="button">Show analytics ▾</button>
 
     <div class="details" id="details-${t}">
       <div class="chart-label">Price · EMA20/50 · buy/sell zones</div>
       <div class="chart-box"><canvas id="price-canvas-${t}"></canvas></div>
+
+      <div class="chart-label">Long-term signal (daily candles)</div>
+      <div class="reco-box" id="longterm-detail-${t}">—</div>
 
       <div class="chart-label">Indicators</div>
       <div class="indicator-grid" id="indicators-${t}"></div>
@@ -1398,7 +1521,7 @@ function sentimentSourceNote(sent){
   return `${p} · ${r} · X/Telegram: use .py script`;
 }
 
-function renderAssetCard(asset, bundle, scored, sent, smoothed, label, labelSince, pctChange, volRatio, whaleReasons, risk, allVotes, deriv){
+function renderAssetCard(asset, bundle, scored, sent, smoothed, label, labelSince, pctChange, volRatio, whaleReasons, risk, allVotes, deriv, longTerm, confluence){
   const t = asset.token;
   const card = document.getElementById("card-"+t);
   const cssKey = label.toLowerCase().replace(/\s+/g,"");
@@ -1475,6 +1598,31 @@ function renderAssetCard(asset, bundle, scored, sent, smoothed, label, labelSinc
     `;
   }
 
+  const ltBadge = document.getElementById("longterm-"+t);
+  const ltCssClass = !longTerm.available ? "" : longTerm.score>=55 ? "bottom-strong" : longTerm.score>=25 ? "bottom-forming" : "";
+  ltBadge.className = "longterm-badge " + ltCssClass;
+  ltBadge.innerHTML = longTerm.available
+    ? `Long-term (daily): <b>${longTerm.label}</b>${confluence.type==="confluence" ? " · 🎯 confluence with short-term" : ""}${confluence.type==="conflict" ? " · ⚠️ conflicts with short-term" : ""}`
+    : `Long-term (daily): <b>not enough history yet</b>`;
+
+  const ltDetailEl = document.getElementById("longterm-detail-"+t);
+  let ltHtml = "";
+  if(!longTerm.available){
+    ltHtml = `<div>Not enough daily candle history from this exchange yet to judge a longer-term bottom pattern.</div>`;
+  }else{
+    ltHtml = `
+      <div class="row"><span>Signal</span><b>${longTerm.label}</b></div>
+      <div class="row"><span>Daily RSI</span><b>${longTerm.rsiNow.toFixed(1)}</b></div>
+      <div class="row"><span>vs 90-day high</span><b>${longTerm.drawdownPct.toFixed(1)}%</b></div>
+      <div class="row"><span>50d / 200d EMA</span><b>$${formatPrice(longTerm.ema50)} / $${formatPrice(longTerm.ema200)}</b></div>
+      <div style="margin-top:6px;">${longTerm.reasons.length ? longTerm.reasons.join("<br/>") : "No capitulation/oversold-recovery pattern detected right now."}</div>
+    `;
+  }
+  if(confluence.type==="confluence" || confluence.type==="conflict"){
+    ltHtml += `<div class="confluence-note ${confluence.type}">${confluence.text}</div>`;
+  }
+  ltDetailEl.innerHTML = ltHtml;
+
   STATE[t].lastBundle = bundle;
   STATE[t].lastScored = scored;
   STATE[t].lastReco = reco;
@@ -1496,6 +1644,8 @@ function renderAssetError(t, e){
   document.getElementById("quick-"+t).textContent = "—";
   document.getElementById("score-"+t).textContent = "score —";
   document.getElementById("stable-"+t).textContent = "—";
+  document.getElementById("longterm-"+t).innerHTML = "Long-term (daily): —";
+  document.getElementById("longterm-"+t).className = "longterm-badge";
 }
 
 /* ============================================================
@@ -1547,7 +1697,10 @@ async function refreshAsset(asset, panicKey){
     const atrPct = (scored.atrVal/bundle.price)*100;
     const risk = computeRisk(atrPct, spreadPct, whaleReasons.length>0, bundle.exchangeName);
 
-    renderAssetCard(asset, bundle, scored, sent, smoothed, STATE[t].label, STATE[t].labelSince, pctChange, volRatio, whaleReasons, risk, allVotes, deriv);
+    const longTerm = computeLongTermSignal(bundle.ohlcv1d);
+    const confluence = computeConfluence(STATE[t].label, longTerm);
+
+    renderAssetCard(asset, bundle, scored, sent, smoothed, STATE[t].label, STATE[t].labelSince, pctChange, volRatio, whaleReasons, risk, allVotes, deriv, longTerm, confluence);
   }catch(e){
     renderAssetError(t, e);
   }

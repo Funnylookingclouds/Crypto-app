@@ -46,6 +46,13 @@
   .status b{ color:var(--text); }
 
   .wallet-box{ display:flex; align-items:center; gap:10px; margin-top:10px; flex-wrap:wrap; }
+  .wallet-box input, .wallet-box button{
+    font-family:'IBM Plex Mono',monospace; font-size:12.5px; padding:8px 10px; border-radius:6px; outline:none;
+  }
+  .wallet-box input{ background:var(--panel); border:1px solid var(--line); color:var(--text); }
+  .wallet-box button{ background:var(--amber); color:#1a1200; font-weight:700; border:none; cursor:pointer; }
+  .wallet-box button:active{ transform:translateY(1px); }
+  .wallet-box button.secondary{ background:transparent; border:1px solid var(--amber-dim); color:var(--amber); font-weight:600; }
   .wallet-status{ font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--muted); }
   .wallet-status.connected{ color:var(--green); }
   .wallet-status.wrongchain{ color:var(--orange); }
@@ -145,6 +152,11 @@
     <button id="refreshBtn">Refresh now</button>
     <button class="secondary" id="autoBtn">Auto: ON</button>
   </div>
+  <div class="wallet-box" style="margin-top:6px;">
+    <input id="customTicker" type="text" placeholder="Analyze any coin — e.g. SOL, or 'look into Solana'" style="flex:1;min-width:220px;background:var(--panel);border:1px solid var(--line);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12.5px;padding:8px 10px;border-radius:6px;" />
+    <button id="analyzeBtn" type="button">Analyze</button>
+  </div>
+  <div class="wallet-status" id="customMsg" style="margin-top:4px;"></div>
   <div class="wallet-box">
     <button class="secondary" id="connectWalletBtn" type="button">Connect Wallet</button>
     <span class="wallet-status" id="walletStatus">Not connected — needed only for the on-chain trade links below (ETH/FLR/SGB)</span>
@@ -1003,11 +1015,10 @@ function scoreAsset(bundle){
   ];
   if(obImbalance!==null) votes.push({ name:"Order-book", val:obVote, weight:1 });
 
-  let total=0, wsum=0;
-  votes.forEach(v=>{ total += v.val*v.weight; wsum += v.weight; });
-  const rawScore = wsum>0 ? (total/wsum)*100 : 0;
-
-  return { rawScore, votes, rsiVal, stochRsiVal, macdHist:hLast, bb, atrVal, vwapVal, poc:vp.poc, trend1h, trend4h, obImbalance, swingHigh, swingLow, ichimoku, fib, adx:adxRes };
+  // Note: the final composite score is computed in refreshAsset() from a combined
+  // list (these technical votes + sentiment + derivatives), not here — scoreAsset
+  // only supplies the technical votes and stats.
+  return { votes, rsiVal, stochRsiVal, macdHist:hLast, bb, atrVal, vwapVal, poc:vp.poc, trend1h, trend4h, obImbalance, swingHigh, swingLow, ichimoku, fib, adx:adxRes };
 }
 
 function labelFromScore(score, prevLabel){
@@ -1117,62 +1128,141 @@ function formatPrice(p){
   return p.toFixed(6);
 }
 
+function createCardElement(a, isCustom){
+  const t = a.token;
+  STATE[t] = { smoothed:null, label:null, labelSince:Date.now(), priceChart:null, volChart:null, depthChart:null, lastBundle:null, lastScored:null, lastReco:null };
+  const el = document.createElement('div');
+  el.className = "card neutral skeleton";
+  el.id = "card-"+t;
+  el.innerHTML = `
+    <div class="card-top">
+      <div><div class="sym">$${t}</div><div class="exch" id="exch-${t}">connecting…</div></div>
+      <div style="display:flex;align-items:flex-start;gap:6px;">
+        <div class="risk-badge" id="risk-${t}">Risk: —</div>
+        ${isCustom ? `<button onclick="removeCustomAsset('${t}')" title="Remove"
+          style="background:transparent;border:1px solid var(--line);color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:11px;padding:3px 7px;border-radius:5px;cursor:pointer;">✕</button>` : ""}
+      </div>
+    </div>
+    <div><div class="price" id="price-${t}">—</div><div class="change" id="change-${t}">—</div></div>
+    <div class="quickstats" id="quick-${t}">—</div>
+
+    <div class="whale-ribbon" id="whale-${t}"></div>
+
+    <div class="signal-banner neutral" id="badge-${t}"><span class="icon">●</span><span>Connecting…</span></div>
+    <div class="gauge-track"><div class="gauge-pointer" id="gauge-${t}" style="left:50%"></div></div>
+    <div class="gauge-meta"><span id="score-${t}">score —</span><span id="stable-${t}">—</span></div>
+
+    <div class="reason" id="reason-${t}">Fetching live data…</div>
+
+    <button class="detail-toggle" id="toggle-${t}" type="button">Show analytics ▾</button>
+
+    <div class="details" id="details-${t}">
+      <div class="chart-label">Price · EMA20/50 · buy/sell zones</div>
+      <div class="chart-box"><canvas id="price-canvas-${t}"></canvas></div>
+
+      <div class="chart-label">Indicators</div>
+      <div class="indicator-grid" id="indicators-${t}"></div>
+
+      <div class="chart-label">Volume (1h candles)</div>
+      <div class="chart-box short"><canvas id="vol-canvas-${t}"></canvas></div>
+
+      <div class="chart-label">Order book depth</div>
+      <div class="chart-box short">
+        <canvas id="depth-canvas-${t}"></canvas>
+        <div class="chart-empty" id="depth-empty-${t}" style="display:none;"></div>
+      </div>
+
+      <div class="chart-label">Suggested levels</div>
+      <div class="reco-box" id="reco-${t}">—</div>
+
+      <div class="dex-box" id="dex-box-${t}" style="display:${DEX_LINKS[t] ? "block" : "none"};">
+        <div id="dex-live-${t}"></div>
+        ${t==="ETH" ? uniswapSwapUiHtml(t) : ""}
+      </div>
+    </div>
+  `;
+  document.getElementById("grid").appendChild(el);
+  document.getElementById("toggle-"+t).addEventListener("click", ()=> toggleDetails(t));
+  return el;
+}
+
 function ensureCards(){
   const grid = document.getElementById('grid');
   grid.innerHTML = "";
-  PORTFOLIO.forEach(a=>{
-    const t = a.token;
-    STATE[t] = { smoothed:null, label:null, labelSince:Date.now(), priceChart:null, volChart:null, depthChart:null, lastBundle:null, lastScored:null, lastReco:null };
-    const el = document.createElement('div');
-    el.className = "card neutral skeleton";
-    el.id = "card-"+t;
-    el.innerHTML = `
-      <div class="card-top">
-        <div><div class="sym">$${t}</div><div class="exch" id="exch-${t}">connecting…</div></div>
-        <div class="risk-badge" id="risk-${t}">Risk: —</div>
-      </div>
-      <div><div class="price" id="price-${t}">—</div><div class="change" id="change-${t}">—</div></div>
-      <div class="quickstats" id="quick-${t}">—</div>
-
-      <div class="whale-ribbon" id="whale-${t}"></div>
-
-      <div class="signal-banner neutral" id="badge-${t}"><span class="icon">●</span><span>Connecting…</span></div>
-      <div class="gauge-track"><div class="gauge-pointer" id="gauge-${t}" style="left:50%"></div></div>
-      <div class="gauge-meta"><span id="score-${t}">score —</span><span id="stable-${t}">—</span></div>
-
-      <div class="reason" id="reason-${t}">Fetching live data…</div>
-
-      <button class="detail-toggle" id="toggle-${t}" type="button">Show analytics ▾</button>
-
-      <div class="details" id="details-${t}">
-        <div class="chart-label">Price · EMA20/50 · buy/sell zones</div>
-        <div class="chart-box"><canvas id="price-canvas-${t}"></canvas></div>
-
-        <div class="chart-label">Indicators</div>
-        <div class="indicator-grid" id="indicators-${t}"></div>
-
-        <div class="chart-label">Volume (1h candles)</div>
-        <div class="chart-box short"><canvas id="vol-canvas-${t}"></canvas></div>
-
-        <div class="chart-label">Order book depth</div>
-        <div class="chart-box short">
-          <canvas id="depth-canvas-${t}"></canvas>
-          <div class="chart-empty" id="depth-empty-${t}" style="display:none;"></div>
-        </div>
-
-        <div class="chart-label">Suggested levels</div>
-        <div class="reco-box" id="reco-${t}">—</div>
-
-        <div class="dex-box" id="dex-box-${t}" style="display:${DEX_LINKS[t] ? "block" : "none"};">
-          <div id="dex-live-${t}"></div>
-          ${t==="ETH" ? uniswapSwapUiHtml(t) : ""}
-        </div>
-      </div>
-    `;
-    grid.appendChild(el);
-    document.getElementById("toggle-"+t).addEventListener("click", ()=> toggleDetails(t));
-  });
+  PORTFOLIO.forEach(a => createCardElement(a, false));
 }
+
+/* ============================================================
+   ANALYZE ANY COIN: type a ticker or common name, run the full
+   pipeline (indicators, composite score, whale/risk, derivatives,
+   chart) against it on demand, same as the fixed portfolio.
+   ============================================================ */
+let CUSTOM_ASSETS = [];
+
+const COIN_ALIASES = {
+  "bitcoin":"BTC","ethereum":"ETH","solana":"SOL","cardano":"ADA","dogecoin":"DOGE",
+  "ripple":"XRP","xrp":"XRP","binance coin":"BNB","bnb":"BNB","tron":"TRX",
+  "chainlink":"LINK","avalanche":"AVAX","polygon":"POL","litecoin":"LTC","shiba inu":"SHIB",
+  "pepe":"PEPE","sui":"SUI","aptos":"APT","arbitrum":"ARB","optimism":"OP",
+  "cosmos":"ATOM","algorand":"ALGO","filecoin":"FIL","render":"RENDER","injective":"INJ",
+  "celestia":"TIA","sei":"SEI","worldcoin":"WLD","ondo":"ONDO","pyth":"PYTH",
+  "near":"NEAR","aave":"AAVE","uniswap":"UNI","polkadot":"DOT","stellar":"XLM",
+  "hedera":"HBAR","flare":"FLR","songbird":"SGB","stronghold":"SHX","gala":"GALA",
+  "kava":"KAVA","vechain":"VET","neo":"NEO","internet computer":"ICP","xdc":"XDC",
+  "dash":"DASH","tezos":"XTZ","dodo":"DODO","iota":"IOTA","lcx":"LCX",
+};
+
+function resolveTickerFromInput(raw){
+  let s = raw.trim().toLowerCase();
+  s = s.replace(/^(look into|analyze|analyse|check|research|what about|tell me about|find|show me)\s+/i, "").trim();
+  s = s.replace(/[^a-z0-9\s]/g, "").trim();
+  if(!s) return null;
+  if(COIN_ALIASES[s]) return COIN_ALIASES[s];
+  const words = s.split(/\s+/);
+  const lastWord = words[words.length-1];
+  if(COIN_ALIASES[lastWord]) return COIN_ALIASES[lastWord];
+  return lastWord.toUpperCase();
+}
+
+function allAssets(){
+  return PORTFOLIO.concat(CUSTOM_ASSETS);
+}
+
+async function analyzeCustomCoin(){
+  const input = document.getElementById("customTicker");
+  const msgEl = document.getElementById("customMsg");
+  const raw = input.value;
+  const ticker = resolveTickerFromInput(raw);
+  if(!ticker){ msgEl.textContent = "Type a ticker or coin name first."; return; }
+
+  if(PORTFOLIO.some(a=>a.token===ticker) || CUSTOM_ASSETS.some(a=>a.token===ticker)){
+    msgEl.textContent = `$${ticker} is already on the board — scroll down to find it.`;
+    const card = document.getElementById("card-"+ticker);
+    if(card) card.scrollIntoView({ behavior:"smooth", block:"center" });
+    return;
+  }
+
+  msgEl.textContent = `Interpreting as $${ticker} — fetching live data…`;
+  const asset = { token:ticker, binance:ticker+"USDT", kucoin:ticker+"-USDT", gate:ticker+"_USDT", bitrue:ticker+"USDT" };
+  CUSTOM_ASSETS.push(asset);
+  createCardElement(asset, true);
+  input.value = "";
+
+  const panicKey = document.getElementById('panicKey').value.trim();
+  await refreshAsset(asset, panicKey);
+  renderTape();
+  msgEl.textContent = `Added $${ticker}. It'll now refresh automatically with everything else.`;
+}
+
+function removeCustomAsset(token){
+  CUSTOM_ASSETS = CUSTOM_ASSETS.filter(a=>a.token!==token);
+  const card = document.getElementById("card-"+token);
+  if(card) card.remove();
+  delete STATE[token];
+  delete lastPrices[token];
+  renderTape();
+}
+
 
 function toggleDetails(token){
   const d = document.getElementById("details-"+token);
@@ -1292,7 +1382,7 @@ function renderDepthChart(token, depth){
 
 function renderTape(){
   const tape = document.getElementById('tape');
-  const items = PORTFOLIO.map(a=>{
+  const items = allAssets().map(a=>{
     const p = lastPrices[a.token];
     if(!p) return `<span>$${a.token} <b>…</b></span>`;
     const cls = p.pctChange >= 0 ? "up" : "down";
@@ -1468,7 +1558,7 @@ async function refreshAll(){
   document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString() + " (fetching…)";
   totalAttempts = 0;
   totalFailures = 0;
-  const [fg] = await Promise.all([ fetchFearGreed(), Promise.all(PORTFOLIO.map(a => refreshAsset(a, panicKey))) ]);
+  const [fg] = await Promise.all([ fetchFearGreed(), Promise.all(allAssets().map(a => refreshAsset(a, panicKey))) ]);
   renderTape();
   document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
 
@@ -1488,7 +1578,7 @@ async function refreshAll(){
 }
 
 function tickClocks(){
-  PORTFOLIO.forEach(a=>{
+  allAssets().forEach(a=>{
     const st = STATE[a.token];
     const el = document.getElementById("stable-"+a.token);
     if(!st || !el || st.labelSince==null) return;
@@ -1506,6 +1596,8 @@ function scheduleAuto(){
 
 document.getElementById('refreshBtn').addEventListener('click', refreshAll);
 document.getElementById('connectWalletBtn').addEventListener('click', connectWallet);
+document.getElementById('analyzeBtn').addEventListener('click', analyzeCustomCoin);
+document.getElementById('customTicker').addEventListener('keydown', (e)=>{ if(e.key==="Enter") analyzeCustomCoin(); });
 document.getElementById('interval').addEventListener('change', scheduleAuto);
 document.getElementById('autoBtn').addEventListener('click', (e)=>{
   autoOn = !autoOn;

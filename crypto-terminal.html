@@ -9,45 +9,19 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <style>
   :root{
-    --void:#0B0F14;
-    --panel:#121A24;
-    --panel-2:#0F151D;
-    --line:#223040;
-    --amber:#E8A33D;
-    --amber-dim:#8A6323;
-    --green:#3ECF8E;
-    --red:#FF5C5C;
-    --text:#E7EDF3;
-    --muted:#7C8B9C;
+    --void:#0B0F14; --panel:#121A24; --panel-2:#0F151D; --line:#223040;
+    --amber:#E8A33D; --amber-dim:#8A6323; --green:#3ECF8E; --red:#FF5C5C;
+    --orange:#FF8A5C; --text:#E7EDF3; --muted:#7C8B9C;
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;background:var(--void);color:var(--text);font-family:'IBM Plex Sans',sans-serif;}
   ::selection{background:var(--amber);color:#1a1200;}
 
-  /* ---- ticker tape (signature element) ---- */
-  .tape-wrap{
-    background:var(--panel-2);
-    border-bottom:1px solid var(--line);
-    overflow:hidden;
-    white-space:nowrap;
-    position:relative;
-    height:34px;
-  }
-  .tape-wrap::before, .tape-wrap::after{
-    content:"";
-    position:absolute; top:0; bottom:0; width:36px; z-index:2;
-  }
+  .tape-wrap{ background:var(--panel-2); border-bottom:1px solid var(--line); overflow:hidden; white-space:nowrap; position:relative; height:34px; }
+  .tape-wrap::before, .tape-wrap::after{ content:""; position:absolute; top:0; bottom:0; width:36px; z-index:2; }
   .tape-wrap::before{ left:0; background:linear-gradient(90deg,var(--panel-2),transparent); }
   .tape-wrap::after{ right:0; background:linear-gradient(270deg,var(--panel-2),transparent); }
-  .tape{
-    display:inline-flex;
-    align-items:center;
-    height:34px;
-    font-family:'IBM Plex Mono',monospace;
-    font-size:12.5px;
-    animation:scroll 32s linear infinite;
-    will-change:transform;
-  }
+  .tape{ display:inline-flex; align-items:center; height:34px; font-family:'IBM Plex Mono',monospace; font-size:12.5px; animation:scroll 32s linear infinite; will-change:transform; }
   .tape span{ padding:0 22px; color:var(--muted); border-right:1px solid var(--line); display:inline-flex; gap:8px; }
   .tape span b{ color:var(--text); font-weight:600; }
   .tape span.up{ color:var(--green); } .tape span.down{ color:var(--red); }
@@ -62,8 +36,7 @@
   .controls{ display:flex; flex-wrap:wrap; gap:10px; margin-top:16px; align-items:center; }
   .controls input, .controls select, .controls button{
     background:var(--panel); border:1px solid var(--line); color:var(--text);
-    font-family:'IBM Plex Mono',monospace; font-size:12.5px;
-    padding:8px 10px; border-radius:6px; outline:none;
+    font-family:'IBM Plex Mono',monospace; font-size:12.5px; padding:8px 10px; border-radius:6px; outline:none;
   }
   .controls input{ min-width:220px; flex:1; }
   .controls button{ background:var(--amber); color:#1a1200; font-weight:700; border:none; cursor:pointer; }
@@ -72,39 +45,34 @@
   .status{ font-size:11.5px; color:var(--muted); font-family:'IBM Plex Mono',monospace; }
   .status b{ color:var(--text); }
 
-  .netwarn{
-    display:none; margin:14px 20px 0; padding:12px 14px; border-radius:8px;
-    background:rgba(232,163,61,0.08); border:1px solid var(--amber-dim); color:var(--amber);
-    font-size:12.5px; font-family:'IBM Plex Mono',monospace; line-height:1.6;
-  }
+  .netwarn{ display:none; margin:14px 20px 0; padding:12px 14px; border-radius:8px; background:rgba(232,163,61,0.08); border:1px solid var(--amber-dim); color:var(--amber); font-size:12.5px; font-family:'IBM Plex Mono',monospace; line-height:1.6; }
   .netwarn.show{ display:block; }
 
   main{ padding:18px 20px 40px; }
-  .grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:14px; }
-  .card{
-    background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px;
-    display:flex; flex-direction:column; gap:9px; position:relative; overflow:hidden;
-  }
+  .grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:14px; }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px; display:flex; flex-direction:column; gap:9px; position:relative; overflow:hidden; }
   .card::before{ content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--line); }
   .card.buy::before, .card.strongbuy::before{ background:var(--green); }
   .card.sell::before, .card.strongsell::before{ background:var(--red); }
   .card.neutral::before{ background:var(--amber-dim); }
 
-  .card-top{ display:flex; justify-content:space-between; align-items:flex-start; }
+  .card-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
   .sym{ font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:16px; }
   .exch{ font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; margin-top:2px;}
+  .risk-badge{ font-family:'IBM Plex Mono',monospace; font-size:10px; padding:3px 8px; border-radius:5px; border:1px solid var(--line); color:var(--muted); white-space:nowrap; height:fit-content; }
+  .risk-badge.low{ color:var(--green); border-color:rgba(62,207,142,0.4); }
+  .risk-badge.medium{ color:var(--amber); border-color:rgba(232,163,61,0.4); }
+  .risk-badge.high{ color:var(--orange); border-color:rgba(255,138,92,0.4); }
+  .risk-badge.extreme{ color:var(--red); border-color:rgba(255,92,92,0.5); }
 
   .price{ font-family:'IBM Plex Mono',monospace; font-size:23px; font-weight:600; }
   .change{ font-family:'IBM Plex Mono',monospace; font-size:12.5px; }
   .change.up{ color:var(--green); } .change.down{ color:var(--red); }
   .quickstats{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted); }
 
-  /* ---- signal banner ---- */
-  .signal-banner{
-    display:flex; align-items:center; justify-content:center; gap:8px;
-    font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:15px; letter-spacing:0.03em;
-    padding:9px 10px; border-radius:8px; text-transform:uppercase;
-  }
+  .whale-ribbon{ display:none; background:rgba(232,163,61,0.12); border:1px solid var(--amber-dim); color:var(--amber); font-size:11px; padding:8px 10px; border-radius:6px; line-height:1.5; font-family:'IBM Plex Mono',monospace; }
+
+  .signal-banner{ display:flex; align-items:center; justify-content:center; gap:8px; font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:15px; letter-spacing:0.03em; padding:9px 10px; border-radius:8px; text-transform:uppercase; }
   .signal-banner .icon{ font-size:16px; line-height:1; }
   .signal-banner.strongbuy{ background:var(--green); color:#062217; box-shadow:0 0 0 1px rgba(62,207,142,0.5), 0 0 18px rgba(62,207,142,0.25); animation:pulse 2.4s ease-in-out infinite; }
   .signal-banner.buy{ background:rgba(62,207,142,0.16); color:var(--green); border:1px solid rgba(62,207,142,0.45); }
@@ -115,30 +83,20 @@
   @keyframes pulse{ 0%,100%{filter:brightness(1);} 50%{filter:brightness(1.18);} }
   @media (prefers-reduced-motion: reduce){ .signal-banner{ animation:none !important; } }
 
-  .gauge-track{
-    position:relative; height:8px; border-radius:4px; margin:2px 0 3px;
-    background:linear-gradient(90deg,
-      var(--red) 0%, var(--red) 20%,
-      rgba(255,92,92,0.45) 20%, rgba(255,92,92,0.45) 40%,
-      var(--muted) 40%, var(--muted) 60%,
-      rgba(62,207,142,0.45) 60%, rgba(62,207,142,0.45) 80%,
-      var(--green) 80%, var(--green) 100%);
-  }
+  .gauge-track{ position:relative; height:8px; border-radius:4px; margin:2px 0 3px;
+    background:linear-gradient(90deg, var(--red) 0%, var(--red) 20%, rgba(255,92,92,0.45) 20%, rgba(255,92,92,0.45) 40%, var(--muted) 40%, var(--muted) 60%, rgba(62,207,142,0.45) 60%, rgba(62,207,142,0.45) 80%, var(--green) 80%, var(--green) 100%); }
   .gauge-pointer{ position:absolute; top:-3px; width:3px; height:14px; background:var(--text); border-radius:2px; transform:translateX(-50%); }
   .gauge-meta{ display:flex; justify-content:space-between; font-size:10.5px; color:var(--muted); font-family:'IBM Plex Mono',monospace; }
 
   .reason{ font-size:12px; color:var(--muted); line-height:1.5; }
 
-  .detail-toggle{
-    background:transparent; border:1px solid var(--line); color:var(--amber);
-    font-family:'IBM Plex Mono',monospace; font-size:11.5px; padding:8px; border-radius:6px; cursor:pointer;
-    width:100%;
-  }
+  .detail-toggle{ background:transparent; border:1px solid var(--line); color:var(--amber); font-family:'IBM Plex Mono',monospace; font-size:11.5px; padding:8px; border-radius:6px; cursor:pointer; width:100%; }
   .details{ display:none; margin-top:4px; border-top:1px dashed var(--line); padding-top:10px; }
   .details.open{ display:block; }
 
-  .chart-label{ font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; margin:10px 0 5px; font-family:'IBM Plex Mono',monospace; }
-  .chart-box{ position:relative; height:110px; margin-bottom:2px; }
+  .chart-label{ font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; margin:10px 0 5px; font-family:'IBM Plex Mono',monospace; display:flex; justify-content:space-between; }
+  .chart-box{ position:relative; height:130px; margin-bottom:2px; }
+  .chart-box.short{ height:100px; }
   .chart-empty{ color:var(--muted); font-size:11px; padding:10px 0; }
 
   .indicator-grid{ display:grid; grid-template-columns:1fr 1fr; gap:6px 14px; font-family:'IBM Plex Mono',monospace; font-size:11.5px; }
@@ -149,10 +107,7 @@
   .reco-box .row{ display:flex; justify-content:space-between; gap:10px; }
   .reco-box .disclaim{ color:var(--muted); font-size:10.5px; margin-top:8px; line-height:1.5; }
 
-  footer{
-    padding:16px 20px 30px; color:var(--muted); font-size:11.5px; border-top:1px solid var(--line);
-    font-family:'IBM Plex Mono',monospace; line-height:1.6;
-  }
+  footer{ padding:16px 20px 30px; color:var(--muted); font-size:11.5px; border-top:1px solid var(--line); font-family:'IBM Plex Mono',monospace; line-height:1.7; }
   .skeleton{ opacity:0.45; }
 </style>
 </head>
@@ -163,8 +118,9 @@
 <header>
   <div class="brand"><span class="dot">◆</span> PORTFOLIO SIGNAL TERMINAL</div>
   <div class="sub">
-    Composite rating blends trend (EMA 20/50 on 1h + 4h), momentum (RSI, MACD), volatility (Bollinger, ATR),
-    order-book skew, and news sentiment — then smooths the result so it doesn't flip every refresh.
+    Composite rating blends trend (EMA 20/50, 1h+4h), momentum (RSI, StochRSI, MACD), volatility (Bollinger, ATR),
+    volume profile (POC), order-book skew, whale/wash-trade pattern checks, and news + social sentiment —
+    then smooths the result so it doesn't flip every refresh.
   </div>
   <div class="controls">
     <input id="panicKey" type="text" placeholder="Optional: CryptoPanic API key (cryptopanic.com/developers/api)" />
@@ -191,25 +147,28 @@
 </main>
 
 <footer>
-  Composite rating and suggested entry/stop/target levels are computed heuristics based on volatility (ATR) and
-  trend/momentum structure — they are not predictions and this is not financial advice. Nothing here places trades;
-  it's a read-only signal terminal. Position sizing and risk are always your call.<br/><br/>
-  CryptoPanic's public API doesn't reliably allow direct browser requests (CORS). If sentiment shows "unavailable",
-  run the companion <b>realtime_crypto_agent.py</b> script instead, which calls it server-side with your key.
+  Composite rating, risk level, and suggested entry/stop/target levels are heuristics based on volatility,
+  trend/momentum structure, and order-flow patterns — they are not predictions, whale/wash-trade flags are not
+  proof of manipulation, and none of this is financial advice. This page places no trades; it's read-only.<br/><br/>
+  Sentiment blends CryptoPanic and Reddit's public search, fetched directly from your browser — both can show
+  "unavailable" if the browser blocks the cross-origin request (common; not something this page controls).
+  X/Twitter and Telegram require authenticated, server-side API access and are only available through the
+  companion <b>realtime_crypto_agent.py</b> script, not this browser page.
 </footer>
 
 <script>
 /* ============================================================
    CONFIG
    ============================================================ */
+const DEFAULT_ORDER = ["binance","kucoin","gate","bitrue"];
 const PORTFOLIO = [
-  { token:"BTC",  binance:"BTCUSDT",  kucoin:"BTC-USDT",  gate:"BTC_USDT"  },
-  { token:"ETH",  binance:"ETHUSDT",  kucoin:"ETH-USDT",  gate:"ETH_USDT"  },
-  { token:"XLM",  binance:"XLMUSDT",  kucoin:"XLM-USDT",  gate:"XLM_USDT"  },
-  { token:"HBAR", binance:"HBARUSDT", kucoin:"HBAR-USDT", gate:"HBAR_USDT" },
-  { token:"FLR",  binance:"FLRUSDT",  kucoin:"FLR-USDT",  gate:"FLR_USDT"  },
-  { token:"SGB",  binance:null,       kucoin:"SGB-USDT",  gate:"SGB_USDT"  },
-  { token:"SHX",  binance:null,       kucoin:"SHX-USDT",  gate:"SHX_USDT"  },
+  { token:"BTC",  binance:"BTCUSDT",  kucoin:"BTC-USDT",  gate:"BTC_USDT",  bitrue:"BTCUSDT"  },
+  { token:"ETH",  binance:"ETHUSDT",  kucoin:"ETH-USDT",  gate:"ETH_USDT",  bitrue:"ETHUSDT"  },
+  { token:"XLM",  binance:"XLMUSDT",  kucoin:"XLM-USDT",  gate:"XLM_USDT",  bitrue:"XLMUSDT"  },
+  { token:"HBAR", binance:"HBARUSDT", kucoin:"HBAR-USDT", gate:"HBAR_USDT", bitrue:"HBARUSDT" },
+  { token:"FLR",  binance:"FLRUSDT",  kucoin:"FLR-USDT",  gate:"FLR_USDT",  bitrue:"FLRUSDT",  priority:["bitrue","kucoin","gate","binance"] },
+  { token:"SGB",  binance:null,       kucoin:"SGB-USDT",  gate:"SGB_USDT",  bitrue:"SGBUSDT",  priority:["bitrue","gate","kucoin"] },
+  { token:"SHX",  binance:null,       kucoin:"SHX-USDT",  gate:"SHX_USDT",  bitrue:"SHXUSDT",  priority:["kucoin","gate","bitrue"] },
 ];
 
 let autoOn = true;
@@ -236,21 +195,15 @@ async function fetchJSON(url, ms = 7000){
     clearTimeout(timeoutId);
   }
 }
-
 function last(arr){ return arr[arr.length-1]; }
 
 /* ============================================================
-   EXCHANGE ADAPTERS: ohlcv / price / depth per exchange
+   EXCHANGE ADAPTERS
    ============================================================ */
 async function ohlcv_binance(sym, interval, limit){
   const klines = await fetchJSON(`https://api.binance.com/api/v3/klines?symbol=${sym}&interval=${interval}&limit=${limit}`);
   if(!Array.isArray(klines) || klines.length < 5) throw new Error("insufficient candle data");
-  return {
-    closes: klines.map(k => parseFloat(k[4])),
-    highs:  klines.map(k => parseFloat(k[2])),
-    lows:   klines.map(k => parseFloat(k[3])),
-    vols:   klines.map(k => parseFloat(k[5])),
-  };
+  return { closes:klines.map(k=>parseFloat(k[4])), highs:klines.map(k=>parseFloat(k[2])), lows:klines.map(k=>parseFloat(k[3])), vols:klines.map(k=>parseFloat(k[5])) };
 }
 async function price_binance(sym){
   const t = await fetchJSON(`https://api.binance.com/api/v3/ticker/24hr?symbol=${sym}`);
@@ -258,7 +211,7 @@ async function price_binance(sym){
 }
 async function depth_binance(sym){
   const d = await fetchJSON(`https://api.binance.com/api/v3/depth?symbol=${sym}&limit=100`);
-  return { bids: d.bids.map(b=>[parseFloat(b[0]),parseFloat(b[1])]), asks: d.asks.map(a=>[parseFloat(a[0]),parseFloat(a[1])]) };
+  return { bids:d.bids.map(b=>[parseFloat(b[0]),parseFloat(b[1])]), asks:d.asks.map(a=>[parseFloat(a[0]),parseFloat(a[1])]) };
 }
 
 async function ohlcv_kucoin(sym, interval, limit){
@@ -269,13 +222,8 @@ async function ohlcv_kucoin(sym, interval, limit){
   const from = now - stepSeconds*(limit+5);
   const klines = await fetchJSON(`https://api.kucoin.com/api/v1/market/candles?type=${kcInterval}&symbol=${sym}&startAt=${from}&endAt=${now}`);
   if(!klines.data || klines.data.length < 5) throw new Error("insufficient candle data");
-  const rows = [...klines.data].reverse(); // oldest first
-  return {
-    closes: rows.map(r => parseFloat(r[2])),
-    highs:  rows.map(r => parseFloat(r[3])),
-    lows:   rows.map(r => parseFloat(r[4])),
-    vols:   rows.map(r => parseFloat(r[5])),
-  };
+  const rows = [...klines.data].reverse();
+  return { closes:rows.map(r=>parseFloat(r[2])), highs:rows.map(r=>parseFloat(r[3])), lows:rows.map(r=>parseFloat(r[4])), vols:rows.map(r=>parseFloat(r[5])) };
 }
 async function price_kucoin(sym){
   const stats = await fetchJSON(`https://api.kucoin.com/api/v1/market/stats?symbol=${sym}`);
@@ -284,18 +232,13 @@ async function price_kucoin(sym){
 async function depth_kucoin(sym){
   const d = await fetchJSON(`https://api.kucoin.com/api/v1/market/orderbook/level2_20?symbol=${sym}`);
   const data = d.data;
-  return { bids: data.bids.map(b=>[parseFloat(b[0]),parseFloat(b[1])]), asks: data.asks.map(a=>[parseFloat(a[0]),parseFloat(a[1])]) };
+  return { bids:data.bids.map(b=>[parseFloat(b[0]),parseFloat(b[1])]), asks:data.asks.map(a=>[parseFloat(a[0]),parseFloat(a[1])]) };
 }
 
 async function ohlcv_gate(sym, interval, limit){
   const klines = await fetchJSON(`https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=${sym}&interval=${interval}&limit=${limit}`);
   if(!Array.isArray(klines) || klines.length < 5) throw new Error("insufficient candle data");
-  return {
-    closes: klines.map(k => parseFloat(k[2])),
-    highs:  klines.map(k => parseFloat(k[3])),
-    lows:   klines.map(k => parseFloat(k[4])),
-    vols:   klines.map(k => parseFloat(k[1])),
-  };
+  return { closes:klines.map(k=>parseFloat(k[2])), highs:klines.map(k=>parseFloat(k[3])), lows:klines.map(k=>parseFloat(k[4])), vols:klines.map(k=>parseFloat(k[1])) };
 }
 async function price_gate(sym){
   const t = await fetchJSON(`https://api.gateio.ws/api/v4/spot/tickers?currency_pair=${sym}`);
@@ -303,17 +246,37 @@ async function price_gate(sym){
 }
 async function depth_gate(sym){
   const d = await fetchJSON(`https://api.gateio.ws/api/v4/spot/order_book?currency_pair=${sym}&limit=100`);
-  return { bids: d.bids.map(b=>[parseFloat(b[0]),parseFloat(b[1])]), asks: d.asks.map(a=>[parseFloat(a[0]),parseFloat(a[1])]) };
+  return { bids:d.bids.map(b=>[parseFloat(b[0]),parseFloat(b[1])]), asks:d.asks.map(a=>[parseFloat(a[0]),parseFloat(a[1])]) };
+}
+
+/* Bitrue's public spot API mirrors Binance's shape (openapi.bitrue.com, no key needed for market data) */
+async function ohlcv_bitrue(sym, interval, limit){
+  const klines = await fetchJSON(`https://openapi.bitrue.com/api/v1/klines?symbol=${sym}&interval=${interval}&limit=${limit}`);
+  if(!Array.isArray(klines) || klines.length < 5) throw new Error("insufficient candle data");
+  return { closes:klines.map(k=>parseFloat(k[4])), highs:klines.map(k=>parseFloat(k[2])), lows:klines.map(k=>parseFloat(k[3])), vols:klines.map(k=>parseFloat(k[5])) };
+}
+async function price_bitrue(sym){
+  const t = await fetchJSON(`https://openapi.bitrue.com/api/v1/ticker/24hr?symbol=${sym}`);
+  return parseFloat(t.lastPrice ?? t.close ?? t.last);
+}
+async function depth_bitrue(sym){
+  const d = await fetchJSON(`https://openapi.bitrue.com/api/v1/depth?symbol=${sym}&limit=100`);
+  return { bids:d.bids.map(b=>[parseFloat(b[0]),parseFloat(b[1])]), asks:d.asks.map(a=>[parseFloat(a[0]),parseFloat(a[1])]) };
 }
 
 const EXCHANGES = {
   binance: { name:"Binance", ohlcv:ohlcv_binance, price:price_binance, depth:depth_binance },
   kucoin:  { name:"KuCoin",  ohlcv:ohlcv_kucoin,  price:price_kucoin,  depth:depth_kucoin  },
   gate:    { name:"Gate.io", ohlcv:ohlcv_gate,    price:price_gate,    depth:depth_gate    },
+  bitrue:  { name:"Bitrue",  ohlcv:ohlcv_bitrue,  price:price_bitrue,  depth:depth_bitrue  },
 };
 
+function exchangeOrderFor(asset){
+  return (asset.priority || DEFAULT_ORDER).filter(k => asset[k]);
+}
+
 async function fetchAssetBundle(asset){
-  const order = ["binance","kucoin","gate"].filter(k => asset[k]);
+  const order = exchangeOrderFor(asset);
   const errors = [];
   totalAttempts++;
 
@@ -322,11 +285,7 @@ async function fetchAssetBundle(asset){
     const sym = asset[key];
     try{
       const ohlcv1h = await ex.ohlcv(sym, "1h", 60);
-      const rest = await Promise.allSettled([
-        ex.ohlcv(sym, "4h", 60),
-        ex.price(sym),
-        ex.depth(sym),
-      ]);
+      const rest = await Promise.allSettled([ ex.ohlcv(sym, "4h", 60), ex.price(sym), ex.depth(sym) ]);
       const ohlcv4h = rest[0].status === "fulfilled" ? rest[0].value : null;
       const price   = rest[1].status === "fulfilled" ? rest[1].value : last(ohlcv1h.closes);
       const depth   = rest[2].status === "fulfilled" ? rest[2].value : null;
@@ -340,9 +299,9 @@ async function fetchAssetBundle(asset){
 }
 
 /* ============================================================
-   SENTIMENT
+   SENTIMENT: CryptoPanic (news) + Reddit (social), best-effort in-browser
    ============================================================ */
-async function fetchSentiment(token, key){
+async function fetchCryptoPanic(token, key){
   if(!key) return { sentiment:50, status:"no key provided" };
   const url = `https://cryptopanic.com/api/v1/posts/?auth_token=${encodeURIComponent(key)}&currencies=${token}&public=true`;
   try{
@@ -357,8 +316,38 @@ async function fetchSentiment(token, key){
     const score = total>0 ? Math.round((bullish/total)*100) : 50;
     return { sentiment:score, status:"ok" };
   }catch(e){
-    return { sentiment:50, status:"unavailable (browser CORS/network) — use the .py script" };
+    return { sentiment:50, status:"unavailable (CORS/network)" };
   }
+}
+
+async function fetchRedditSentiment(token){
+  const url = `https://www.reddit.com/search.json?q=%24${token}&sort=new&limit=25&t=day`;
+  try{
+    const data = await fetchJSON(url);
+    const posts = (data.data && data.data.children) || [];
+    if(!posts.length) return { sentiment:50, status:"no recent posts" };
+    let up=0, down=0;
+    posts.forEach(p=>{
+      const d = p.data || {};
+      const score = d.score || 0;
+      const ratio = typeof d.upvote_ratio === "number" ? d.upvote_ratio : 0.5;
+      if(score>=0) up += score*ratio + 1; else down += Math.abs(score);
+    });
+    const total = up+down;
+    const sentiment = total>0 ? Math.round((up/total)*100) : 50;
+    return { sentiment, status:"ok" };
+  }catch(e){
+    return { sentiment:50, status:"unavailable (CORS/network)" };
+  }
+}
+
+async function fetchCombinedSentiment(token, panicKey){
+  const [panic, reddit] = await Promise.all([ fetchCryptoPanic(token, panicKey), fetchRedditSentiment(token) ]);
+  const sources = [];
+  if(panic.status==="ok") sources.push(panic.sentiment);
+  if(reddit.status==="ok") sources.push(reddit.sentiment);
+  const combined = sources.length ? Math.round(sources.reduce((a,b)=>a+b,0)/sources.length) : 50;
+  return { sentiment:combined, status: sources.length ? "ok" : "unavailable", panic, reddit };
 }
 
 /* ============================================================
@@ -368,30 +357,35 @@ function ema(values, period){
   const k = 2/(period+1);
   const out = new Array(values.length);
   out[0] = values[0];
-  for(let i=1;i<values.length;i++){
-    out[i] = values[i]*k + out[i-1]*(1-k);
-  }
+  for(let i=1;i<values.length;i++){ out[i] = values[i]*k + out[i-1]*(1-k); }
   return out;
 }
 
-function computeRSI(closes, period=14){
-  if(closes.length < period+1) return 50;
+function computeRSISeries(closes, period=14){
+  if(closes.length < period+1) return [50];
+  const series = [];
   let gains=0, losses=0;
-  for(let i=1;i<=period;i++){
-    const diff = closes[i]-closes[i-1];
-    if(diff>0) gains+=diff; else losses-=diff;
-  }
+  for(let i=1;i<=period;i++){ const diff=closes[i]-closes[i-1]; if(diff>0) gains+=diff; else losses-=diff; }
   let avgGain = gains/period, avgLoss = losses/period;
+  series.push(avgLoss===0?100:100-(100/(1+avgGain/avgLoss)));
   for(let i=period+1;i<closes.length;i++){
     const diff = closes[i]-closes[i-1];
-    const gain = diff>0?diff:0;
-    const loss = diff<0?-diff:0;
+    const gain = diff>0?diff:0, loss = diff<0?-diff:0;
     avgGain = (avgGain*(period-1)+gain)/period;
     avgLoss = (avgLoss*(period-1)+loss)/period;
+    series.push(avgLoss===0?100:100-(100/(1+avgGain/avgLoss)));
   }
-  if(avgLoss===0) return 100;
-  const rs = avgGain/avgLoss;
-  return 100 - (100/(1+rs));
+  return series;
+}
+function computeRSI(closes, period=14){ return last(computeRSISeries(closes, period)); }
+
+function computeStochRSI(closes, rsiPeriod=14, stochPeriod=14){
+  const rsiSeries = computeRSISeries(closes, rsiPeriod);
+  if(rsiSeries.length < stochPeriod) return 50;
+  const recent = rsiSeries.slice(-stochPeriod);
+  const minR = Math.min(...recent), maxR = Math.max(...recent);
+  const lastR = last(recent);
+  return maxR===minR ? 50 : ((lastR-minR)/(maxR-minR))*100;
 }
 
 function computeMACD(closes){
@@ -414,11 +408,7 @@ function bollinger(closes, period=20, mult=2){
 function atr(highs, lows, closes, period=14){
   const trs = [];
   for(let i=1;i<highs.length;i++){
-    trs.push(Math.max(
-      highs[i]-lows[i],
-      Math.abs(highs[i]-closes[i-1]),
-      Math.abs(lows[i]-closes[i-1])
-    ));
+    trs.push(Math.max(highs[i]-lows[i], Math.abs(highs[i]-closes[i-1]), Math.abs(lows[i]-closes[i-1])));
   }
   const recent = trs.slice(-period);
   return recent.reduce((a,b)=>a+b,0)/(recent.length||1);
@@ -428,14 +418,70 @@ function rollingVWAP(highs, lows, closes, vols){
   let cumPV=0, cumV=0;
   for(let i=0;i<closes.length;i++){
     const typical = (highs[i]+lows[i]+closes[i])/3;
-    cumPV += typical*vols[i];
-    cumV += vols[i];
+    cumPV += typical*vols[i]; cumV += vols[i];
   }
   return cumV>0 ? cumPV/cumV : last(closes);
 }
 
+/* simplified volume profile -> point of control (POC) */
+function computeVolumeProfile(highs, lows, closes, vols, bins=12){
+  const lo = Math.min(...lows), hi = Math.max(...highs);
+  if(hi<=lo) return { poc: last(closes) };
+  const binSize = (hi-lo)/bins;
+  const volAt = new Array(bins).fill(0);
+  for(let i=0;i<closes.length;i++){
+    const typical = (highs[i]+lows[i]+closes[i])/3;
+    let idx = Math.floor((typical-lo)/binSize);
+    if(idx>=bins) idx = bins-1; if(idx<0) idx = 0;
+    volAt[idx] += vols[i];
+  }
+  let maxIdx = 0;
+  for(let i=1;i<bins;i++) if(volAt[i]>volAt[maxIdx]) maxIdx=i;
+  return { poc: lo + binSize*(maxIdx+0.5) };
+}
+
+function computeSpreadPct(depth){
+  if(!depth || !depth.bids.length || !depth.asks.length) return 0.5;
+  const bestBid = Math.max(...depth.bids.map(b=>b[0]));
+  const bestAsk = Math.min(...depth.asks.map(a=>a[0]));
+  if(bestAsk<=bestBid) return 0.5;
+  const mid = (bestAsk+bestBid)/2;
+  return ((bestAsk-bestBid)/mid)*100;
+}
+
 /* ============================================================
-   COMPOSITE SCORING (the "multi-factor rating")
+   WHALE / WASH-TRADE FLAG + RISK INDICATOR
+   ============================================================ */
+function detectWhaleFlags(bundle, volRatio, pctChange){
+  const reasons = [];
+  if(volRatio>2.5 && Math.abs(pctChange)<0.5){
+    reasons.push(`Volume ${volRatio.toFixed(1)}x normal while price is flat — classic accumulation / wash-trade footprint.`);
+  }
+  const depth = bundle.depth;
+  if(depth && depth.bids.length && depth.asks.length){
+    const bidVol = depth.bids.reduce((a,b)=>a+b[1],0);
+    const askVol = depth.asks.reduce((a,b)=>a+b[1],0);
+    const maxBid = Math.max(...depth.bids.map(b=>b[1]));
+    const maxAsk = Math.max(...depth.asks.map(a=>a[1]));
+    if(bidVol>0 && maxBid/bidVol>0.35) reasons.push("A single buy order makes up over a third of visible bid-side depth — possible whale wall.");
+    if(askVol>0 && maxAsk/askVol>0.35) reasons.push("A single sell order makes up over a third of visible ask-side depth — possible whale wall.");
+  }
+  return reasons;
+}
+
+function computeRisk(atrPct, spreadPct, whaleFlagged, exchangeName){
+  let score = 0;
+  score += atrPct<1 ? 8 : atrPct<3 ? 20 : atrPct<6 ? 32 : 40;
+  score += spreadPct<0.1 ? 5 : spreadPct<0.3 ? 12 : spreadPct<0.8 ? 22 : 30;
+  score += whaleFlagged ? 20 : 0;
+  score += exchangeName==="Binance" ? 0 : 10;
+  score = Math.min(100, score);
+  const label = score<30 ? "Low" : score<55 ? "Medium" : score<80 ? "High" : "Extreme";
+  return { score, label };
+}
+
+/* ============================================================
+   COMPOSITE SCORING
    ============================================================ */
 function scoreAsset(bundle){
   const { ohlcv1h, ohlcv4h, depth } = bundle;
@@ -454,6 +500,9 @@ function scoreAsset(bundle){
   const rsiVal = computeRSI(c1,14);
   const rsiVote = rsiVal<30 ? 1 : (rsiVal>70 ? -1 : 0);
 
+  const stochRsiVal = computeStochRSI(c1,14,14);
+  const stochVote = stochRsiVal<20 ? 1 : (stochRsiVal>80 ? -1 : 0);
+
   const macdRes = computeMACD(c1);
   const hLast = last(macdRes.hist);
   const hPrev = macdRes.hist.length>1 ? macdRes.hist[macdRes.hist.length-2] : hLast;
@@ -465,9 +514,10 @@ function scoreAsset(bundle){
 
   const atrVal = atr(h1,l1,c1,14);
   const vwapVal = rollingVWAP(h1,l1,c1,v1);
+  const vp = computeVolumeProfile(h1,l1,c1,v1,12);
 
   let obVote = 0, obImbalance = null;
-  if(depth && depth.bids && depth.bids.length && depth.asks && depth.asks.length){
+  if(depth && depth.bids.length && depth.asks.length){
     const bidVol = depth.bids.reduce((a,b)=>a+b[1],0);
     const askVol = depth.asks.reduce((a,b)=>a+b[1],0);
     obImbalance = (bidVol-askVol)/(bidVol+askVol);
@@ -475,11 +525,12 @@ function scoreAsset(bundle){
   }
 
   const votes = [
-    { name:"1h trend",  val:trend1h, weight:1 },
-    { name:"4h trend",  val:trend4h, weight: trend4h===0 ? 0 : 1.5 },
-    { name:"RSI(14)",   val:rsiVote, weight:1 },
-    { name:"MACD",      val:macdVote, weight:1 },
-    { name:"Bollinger", val:bbVote, weight:0.75 },
+    { name:"1h trend",   val:trend1h,  weight:1 },
+    { name:"4h trend",   val:trend4h,  weight: trend4h===0 ? 0 : 1.5 },
+    { name:"RSI(14)",    val:rsiVote,  weight:1 },
+    { name:"StochRSI",   val:stochVote, weight:0.75 },
+    { name:"MACD",       val:macdVote, weight:1 },
+    { name:"Bollinger",  val:bbVote,   weight:0.75 },
   ];
   if(obImbalance!==null) votes.push({ name:"Order-book", val:obVote, weight:1 });
 
@@ -490,7 +541,7 @@ function scoreAsset(bundle){
   const swingHigh = Math.max(...h1.slice(-20));
   const swingLow  = Math.min(...l1.slice(-20));
 
-  return { rawScore, votes, rsiVal, macdHist:hLast, bb, atrVal, vwapVal, trend1h, trend4h, obImbalance, swingHigh, swingLow };
+  return { rawScore, votes, rsiVal, stochRsiVal, macdHist:hLast, bb, atrVal, vwapVal, poc:vp.poc, trend1h, trend4h, obImbalance, swingHigh, swingLow };
 }
 
 function labelFromScore(score, prevLabel){
@@ -539,6 +590,56 @@ function buildRecommendation(label, price, atrVal, trend1h, trend4h, swingLow, s
   return { bias: bias>0?"long":"short", entryLow, entryHigh, stop, t1, t2, horizon, swingLow, swingHigh };
 }
 
+function buildOverlayLines(scored, reco){
+  const lines = [];
+  if(reco && reco.bias && reco.bias!=="none"){
+    lines.push({ value:reco.entryLow,  color:"#E8A33D", label:"Entry", dash:[2,2] });
+    lines.push({ value:reco.entryHigh, color:"#E8A33D", label:"Entry", dash:[2,2] });
+    lines.push({ value:reco.stop, color:"#FF5C5C", label:"Stop" });
+    lines.push({ value:reco.t1,   color:"#3ECF8E", label:"T1" });
+    lines.push({ value:reco.t2,   color:"#3ECF8E", label:"T2", dash:[6,3] });
+  }
+  lines.push({ value:scored.poc, color:"#E8A33D", label:"POC", dash:[1,3] });
+  lines.push({ value:scored.swingHigh, color:"#7C8B9C", label:"R", dash:[5,5] });
+  lines.push({ value:scored.swingLow,  color:"#7C8B9C", label:"S", dash:[5,5] });
+  return lines;
+}
+
+/* ============================================================
+   CHART.JS PLUGIN: draw horizontal entry/stop/target/POC lines
+   ============================================================ */
+if(typeof Chart !== "undefined"){
+  Chart.register({
+    id: "levelLines",
+    afterDatasetsDraw(chart){
+      const cfg = chart.config.options.plugins && chart.config.options.plugins.levelLines;
+      const lines = cfg && cfg.lines;
+      if(!lines || !lines.length) return;
+      const { ctx, chartArea, scales } = chart;
+      const yScale = scales.y;
+      if(!yScale) return;
+      ctx.save();
+      lines.forEach(line=>{
+        const y = yScale.getPixelForValue(line.value);
+        if(y < chartArea.top || y > chartArea.bottom) return;
+        ctx.strokeStyle = line.color;
+        ctx.setLineDash(line.dash || [4,3]);
+        ctx.lineWidth = 1.25;
+        ctx.beginPath();
+        ctx.moveTo(chartArea.left, y);
+        ctx.lineTo(chartArea.right, y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = line.color;
+        ctx.font = "9px 'IBM Plex Mono', monospace";
+        ctx.textAlign = "right";
+        ctx.fillText(line.label, chartArea.right-2, y-2);
+      });
+      ctx.restore();
+    }
+  });
+}
+
 /* ============================================================
    RENDERING
    ============================================================ */
@@ -553,16 +654,19 @@ function ensureCards(){
   grid.innerHTML = "";
   PORTFOLIO.forEach(a=>{
     const t = a.token;
-    STATE[t] = { smoothed:null, label:null, labelSince:Date.now(), volChart:null, depthChart:null, lastBundle:null };
+    STATE[t] = { smoothed:null, label:null, labelSince:Date.now(), priceChart:null, volChart:null, depthChart:null, lastBundle:null, lastScored:null, lastReco:null };
     const el = document.createElement('div');
     el.className = "card neutral skeleton";
     el.id = "card-"+t;
     el.innerHTML = `
       <div class="card-top">
         <div><div class="sym">$${t}</div><div class="exch" id="exch-${t}">connecting…</div></div>
+        <div class="risk-badge" id="risk-${t}">Risk: —</div>
       </div>
       <div><div class="price" id="price-${t}">—</div><div class="change" id="change-${t}">—</div></div>
       <div class="quickstats" id="quick-${t}">—</div>
+
+      <div class="whale-ribbon" id="whale-${t}"></div>
 
       <div class="signal-banner neutral" id="badge-${t}"><span class="icon">●</span><span>Connecting…</span></div>
       <div class="gauge-track"><div class="gauge-pointer" id="gauge-${t}" style="left:50%"></div></div>
@@ -573,14 +677,17 @@ function ensureCards(){
       <button class="detail-toggle" id="toggle-${t}" type="button">Show analytics ▾</button>
 
       <div class="details" id="details-${t}">
+        <div class="chart-label">Price · EMA20/50 · buy/sell zones</div>
+        <div class="chart-box"><canvas id="price-canvas-${t}"></canvas></div>
+
         <div class="chart-label">Indicators</div>
         <div class="indicator-grid" id="indicators-${t}"></div>
 
         <div class="chart-label">Volume (1h candles)</div>
-        <div class="chart-box"><canvas id="vol-canvas-${t}"></canvas></div>
+        <div class="chart-box short"><canvas id="vol-canvas-${t}"></canvas></div>
 
         <div class="chart-label">Order book depth</div>
-        <div class="chart-box">
+        <div class="chart-box short">
           <canvas id="depth-canvas-${t}"></canvas>
           <div class="chart-empty" id="depth-empty-${t}" style="display:none;"></div>
         </div>
@@ -604,9 +711,45 @@ function toggleDetails(token){
 
 function renderCharts(token){
   const st = STATE[token];
-  if(!st || !st.lastBundle) return;
+  if(!st || !st.lastBundle || !st.lastScored) return;
+  const overlay = buildOverlayLines(st.lastScored, st.lastReco);
+  renderPriceChart(token, st.lastBundle.ohlcv1h, overlay);
   renderVolumeChart(token, st.lastBundle.ohlcv1h);
   renderDepthChart(token, st.lastBundle.depth);
+}
+
+function renderPriceChart(token, ohlcv1h, overlay){
+  const canvas = document.getElementById("price-canvas-"+token);
+  if(!canvas || typeof Chart === "undefined") return;
+  const window_ = 40;
+  const closes = ohlcv1h.closes.slice(-window_);
+  const ema20 = ema(ohlcv1h.closes, 20).slice(-window_);
+  const ema50 = ema(ohlcv1h.closes, Math.min(50, ohlcv1h.closes.length-1)).slice(-window_);
+  const labels = closes.map((_,i)=>i);
+
+  if(!STATE[token].priceChart){
+    STATE[token].priceChart = new Chart(canvas, {
+      type: "line",
+      data: { labels, datasets: [
+        { label:"Close", data:closes, borderColor:"#E7EDF3", borderWidth:1.5, pointRadius:0, tension:0.15 },
+        { label:"EMA20", data:ema20, borderColor:"#E8A33D", borderWidth:1, pointRadius:0, tension:0.15 },
+        { label:"EMA50", data:ema50, borderColor:"#7C8B9C", borderWidth:1, pointRadius:0, tension:0.15, borderDash:[3,2] },
+      ]},
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        plugins: { legend:{display:false}, tooltip:{enabled:false}, levelLines:{ lines: overlay } },
+        scales: { x:{display:false}, y:{ ticks:{color:"#7C8B9C", font:{size:9}}, grid:{color:"#1a2530"} } }
+      }
+    });
+  }else{
+    const ch = STATE[token].priceChart;
+    ch.data.labels = labels;
+    ch.data.datasets[0].data = closes;
+    ch.data.datasets[1].data = ema20;
+    ch.data.datasets[2].data = ema50;
+    ch.options.plugins.levelLines.lines = overlay;
+    ch.update();
+  }
 }
 
 function renderVolumeChart(token, ohlcv1h){
@@ -621,11 +764,7 @@ function renderVolumeChart(token, ohlcv1h){
     STATE[token].volChart = new Chart(canvas, {
       type: "bar",
       data: { labels, datasets: [{ data: vols, backgroundColor: colors, borderRadius: 2 }] },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display:false }, tooltip: { enabled:false } },
-        scales: { x: { display:false }, y: { display:false } }
-      }
+      options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false}, tooltip:{enabled:false} }, scales:{ x:{display:false}, y:{display:false} } }
     });
   }else{
     const ch = STATE[token].volChart;
@@ -653,7 +792,6 @@ function renderDepthChart(token, depth){
   const bidsDesc = [...depth.bids].sort((a,b)=>b[0]-a[0]);
   let cumB = 0;
   const bidPts = bidsDesc.map(([p,q])=>{ cumB+=q; return {price:p, cum:cumB}; }).sort((a,b)=>a.price-b.price);
-
   const asksAsc = [...depth.asks].sort((a,b)=>a[0]-b[0]);
   let cumA = 0;
   const askPts = asksAsc.map(([p,q])=>{ cumA+=q; return {price:p, cum:cumA}; });
@@ -668,14 +806,8 @@ function renderDepthChart(token, depth){
         { label:"Bids", data:bidData, borderColor:"#3ECF8E", backgroundColor:"rgba(62,207,142,0.18)", fill:true, stepped:true, pointRadius:0, borderWidth:1.5 },
         { label:"Asks", data:askData, borderColor:"#FF5C5C", backgroundColor:"rgba(255,92,92,0.18)", fill:true, stepped:true, pointRadius:0, borderWidth:1.5 },
       ]},
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display:false }, tooltip: { enabled:false } },
-        scales: {
-          x: { type:"linear", ticks:{ color:"#7C8B9C", font:{size:9}, maxTicksLimit:4 }, grid:{ color:"#1a2530" } },
-          y: { display:false }
-        }
-      }
+      options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false}, tooltip:{enabled:false} },
+        scales:{ x:{ type:"linear", ticks:{ color:"#7C8B9C", font:{size:9}, maxTicksLimit:4 }, grid:{ color:"#1a2530" } }, y:{ display:false } } }
     });
   }else{
     const ch = STATE[token].depthChart;
@@ -697,7 +829,13 @@ function renderTape(){
   tape.innerHTML = items + items;
 }
 
-function renderAssetCard(asset, bundle, scored, sent, smoothed, label, labelSince, pctChange){
+function sentimentSourceNote(sent){
+  const p = sent.panic.status==="ok" ? "CryptoPanic ✓" : "CryptoPanic ✕";
+  const r = sent.reddit.status==="ok" ? "Reddit ✓" : "Reddit ✕";
+  return `${p} · ${r} · X/Telegram: use .py script`;
+}
+
+function renderAssetCard(asset, bundle, scored, sent, smoothed, label, labelSince, pctChange, volRatio, whaleReasons, risk){
   const t = asset.token;
   const card = document.getElementById("card-"+t);
   const cssKey = label.toLowerCase().replace(/\s+/g,"");
@@ -710,13 +848,21 @@ function renderAssetCard(asset, bundle, scored, sent, smoothed, label, labelSinc
   chEl.textContent = (pctChange>=0?"+":"") + pctChange.toFixed(2) + "% / 1h";
   chEl.className = "change " + (pctChange>=0?"up":"down");
 
-  const vols = bundle.ohlcv1h.vols;
-  const volRatio = vols.length>=21
-    ? last(vols) / (vols.slice(-21,-1).reduce((a,b)=>a+b,0)/20)
-    : 1;
   const atrPct = (scored.atrVal/bundle.price)*100;
   document.getElementById("quick-"+t).textContent =
-    `Vol ${volRatio.toFixed(2)}x · ATR ${atrPct.toFixed(2)}% · RSI ${scored.rsiVal.toFixed(0)}`;
+    `Vol ${volRatio.toFixed(2)}x · ATR ${atrPct.toFixed(2)}% · RSI ${scored.rsiVal.toFixed(0)} · StochRSI ${scored.stochRsiVal.toFixed(0)}`;
+
+  const riskEl = document.getElementById("risk-"+t);
+  riskEl.textContent = "Risk: " + risk.label;
+  riskEl.className = "risk-badge " + risk.label.toLowerCase();
+
+  const whaleEl = document.getElementById("whale-"+t);
+  if(whaleReasons.length){
+    whaleEl.style.display = "block";
+    whaleEl.innerHTML = "🐋 <b>WHALE / WASH-TRADE WATCH</b><br/>" + whaleReasons.join("<br/>");
+  }else{
+    whaleEl.style.display = "none";
+  }
 
   const ICONS = { strongbuy:"▲▲", buy:"▲", neutral:"●", sell:"▼", strongsell:"▼▼" };
   const badge = document.getElementById("badge-"+t);
@@ -731,14 +877,16 @@ function renderAssetCard(asset, bundle, scored, sent, smoothed, label, labelSinc
   document.getElementById("stable-"+t).textContent = mins<1 ? "just changed" : `stable ${mins}m`;
 
   document.getElementById("reason-"+t).innerHTML = buildReasonText(scored.votes) +
-    (sent.status!=="ok" ? `<br/><span style="opacity:0.65">Sentiment: ${sent.status}</span>` : "");
+    `<br/><span style="opacity:0.65">Sentiment: ${sentimentSourceNote(sent)}</span>`;
 
   document.getElementById("indicators-"+t).innerHTML = `
     <div><span>RSI(14)</span><b>${scored.rsiVal.toFixed(1)}</b></div>
+    <div><span>StochRSI</span><b>${scored.stochRsiVal.toFixed(1)}</b></div>
     <div><span>MACD hist</span><b>${scored.macdHist>=0?"+":""}${scored.macdHist.toFixed(4)}</b></div>
     <div><span>Bollinger</span><b>${bbPositionLabel(bundle.price, scored.bb)}</b></div>
     <div><span>ATR(14)</span><b>${scored.atrVal.toFixed(6)}</b></div>
     <div><span>VWAP (rolling)</span><b>$${formatPrice(scored.vwapVal)}</b></div>
+    <div><span>Volume POC</span><b>$${formatPrice(scored.poc)}</b></div>
     <div><span>1h / 4h trend</span><b>${scored.trend1h>0?"up":"down"} / ${scored.trend4h===0?"n/a":(scored.trend4h>0?"up":"down")}</b></div>
     <div><span>Order-book skew</span><b>${scored.obImbalance===null?"n/a":(scored.obImbalance*100).toFixed(1)+"%"}</b></div>
     <div><span>Support / Resist.</span><b>$${formatPrice(scored.swingLow)} / $${formatPrice(scored.swingHigh)}</b></div>
@@ -760,6 +908,8 @@ function renderAssetCard(asset, bundle, scored, sent, smoothed, label, labelSinc
   }
 
   STATE[t].lastBundle = bundle;
+  STATE[t].lastScored = scored;
+  STATE[t].lastReco = reco;
   if(document.getElementById("details-"+t).classList.contains("open")) renderCharts(t);
 }
 
@@ -767,6 +917,9 @@ function renderAssetError(t, e){
   const card = document.getElementById("card-"+t);
   card.classList.remove("skeleton","buy","sell","neutral","strongbuy","strongsell");
   document.getElementById("exch-"+t).textContent = "no source reachable";
+  document.getElementById("whale-"+t).style.display = "none";
+  const riskEl = document.getElementById("risk-"+t);
+  riskEl.textContent = "Risk: —"; riskEl.className = "risk-badge";
   const badge = document.getElementById("badge-"+t);
   badge.className = "signal-banner err";
   badge.innerHTML = `<span class="icon">⚠</span><span>No live data</span>`;
@@ -781,11 +934,11 @@ function renderAssetError(t, e){
    ============================================================ */
 async function refreshAsset(asset, panicKey){
   const t = asset.token;
-  if(!STATE[t]) STATE[t] = { smoothed:null, label:null, labelSince:Date.now(), volChart:null, depthChart:null, lastBundle:null };
+  if(!STATE[t]) STATE[t] = { smoothed:null, label:null, labelSince:Date.now(), priceChart:null, volChart:null, depthChart:null, lastBundle:null, lastScored:null, lastReco:null };
 
   try{
     const bundle = await fetchAssetBundle(asset);
-    const sent = await fetchSentiment(t, panicKey);
+    const sent = await fetchCombinedSentiment(t, panicKey);
     const scored = scoreAsset(bundle);
 
     let rawScore = scored.rawScore;
@@ -808,7 +961,15 @@ async function refreshAsset(asset, panicKey){
     const pctChange = ((last(closes1h) - closes1h[closes1h.length-2]) / closes1h[closes1h.length-2]) * 100;
     lastPrices[t] = { price: bundle.price, pctChange };
 
-    renderAssetCard(asset, bundle, scored, sent, smoothed, STATE[t].label, STATE[t].labelSince, pctChange);
+    const vols = bundle.ohlcv1h.vols;
+    const volRatio = vols.length>=21 ? last(vols) / (vols.slice(-21,-1).reduce((a,b)=>a+b,0)/20) : 1;
+
+    const whaleReasons = detectWhaleFlags(bundle, volRatio, pctChange);
+    const spreadPct = computeSpreadPct(bundle.depth);
+    const atrPct = (scored.atrVal/bundle.price)*100;
+    const risk = computeRisk(atrPct, spreadPct, whaleReasons.length>0, bundle.exchangeName);
+
+    renderAssetCard(asset, bundle, scored, sent, smoothed, STATE[t].label, STATE[t].labelSince, pctChange, volRatio, whaleReasons, risk);
   }catch(e){
     renderAssetError(t, e);
   }

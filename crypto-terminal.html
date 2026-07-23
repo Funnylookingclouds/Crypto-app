@@ -129,9 +129,10 @@
 <header>
   <div class="brand"><span class="dot">◆</span> PORTFOLIO SIGNAL TERMINAL</div>
   <div class="sub">
-    Composite rating blends trend (EMA 20/50, 1h+4h), momentum (RSI, StochRSI, MACD), volatility (Bollinger, ATR),
-    volume profile (POC), Ichimoku Cloud, Fibonacci golden-pocket retracement, order-book skew, whale/wash-trade
-    pattern checks, and news + social sentiment — then smooths the result so it doesn't flip every refresh.
+    Composite rating blends trend (EMA 20/50, 1h+4h, discounted by ADX when the market is choppy), momentum
+    (RSI, StochRSI, MACD), volatility (Bollinger, ATR), volume profile (POC), Ichimoku Cloud, Fibonacci golden-pocket
+    retracement, order-book skew, futures funding rate + open interest, whale/wash-trade checks, and news + social
+    sentiment — then smooths the result so it doesn't flip every refresh.
   </div>
   <div class="controls">
     <input id="panicKey" type="text" placeholder="Optional: CryptoPanic API key (cryptopanic.com/developers/api)" />
@@ -173,9 +174,13 @@
   per-coin community sentiment. X/Twitter and Telegram require authenticated, server-side API access and are
   only available through the companion <b>realtime_crypto_agent.py</b> script, not this browser page.<br/><br/>
   Wallet connect covers ETH, FLR, and SGB only — MetaMask can't reach BTC, XLM, HBAR, or SHX, since they aren't
-  EVM chains. Connecting only reads your address and network; it never holds keys or builds trades itself —
-  "Open [DEX]" hands off to that chain's own official swap interface (Uniswap / SparkDEX / BlazeSwap) in a new
-  tab, where you review and confirm the actual trade yourself.
+  EVM chains. Connecting only reads your address and network; it never holds keys. For FLR and SGB, "Open [DEX]"
+  hands off to that chain's own official swap interface (SparkDEX / BlazeSwap) in a new tab, where you review and
+  confirm the trade yourself.<br/><br/>
+  For ETH only, there's now a one-tap swap (ETH → USDC) using Uniswap's official Trading API — it fetches a real
+  quote and transaction from Uniswap's own backend (never built here), and MetaMask still shows its normal
+  confirmation popup before anything is signed. This is a first release: test with a small amount before trusting
+  it further, and it currently only sells ETH for USDC (buying ETH back needs a token-approval step not yet built).
 </footer>
 
 <script>
@@ -302,8 +307,8 @@ function openDex(token){
 }
 
 function renderDexBox(token){
-  const box = document.getElementById("dex-box-"+token);
-  if(!box) return;
+  const liveEl = document.getElementById("dex-live-"+token);
+  if(!liveEl) return;
   const cfg = DEX_LINKS[token];
   const onRightChain = wallet.address && wallet.chainId === cfg.chainId;
   const st = STATE[token];
@@ -314,7 +319,7 @@ function renderDexBox(token){
     switchBtn = `<button onclick="switchToChain('${token}')">Switch to ${CHAIN_INFO[cfg.chainId].name}</button>`;
   }
 
-  box.innerHTML = `
+  liveEl.innerHTML = `
     <div>${bias ? `Current bias: <b>${bias}</b> — ` : ""}On-chain trades for $${token} happen on <b>${cfg.dex}</b> (${CHAIN_INFO[cfg.chainId].name}).</div>
     <div class="row">
       ${switchBtn}
@@ -323,6 +328,134 @@ function renderDexBox(token){
     <div class="warn" id="dex-msg-${token}">
       This opens ${cfg.dex}'s own official site in a new tab — this page never holds your keys or builds the swap
       itself. Always verify the token contract address and price on ${cfg.dex} before confirming in your wallet.
+    </div>
+  `;
+}
+
+/* ---------------- Uniswap Trading API: one-tap ETH -> USDC swap ----------------
+   Uses Uniswap's official, free Trading API (developers.uniswap.org/dashboard)
+   so the swap route and transaction calldata come from Uniswap's own audited
+   backend, never from anything guessed here. MetaMask still shows its normal
+   confirmation popup before anything is signed or sent. First release: ETH -> USDC
+   only, since native-ETH input needs no token approval step, keeping this simple. */
+const USDC_ETH_MAINNET = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"; // verified against Etherscan
+const NATIVE_ETH_PLACEHOLDER = "0x0000000000000000000000000000000000000000";
+const uniswapState = {};
+
+function toHexAmount(v){
+  if(v==null) return "0x0";
+  if(typeof v === "string" && v.startsWith("0x")) return v;
+  try{ return "0x" + BigInt(v).toString(16); }catch(e){ return "0x0"; }
+}
+
+function extractQuoteOutputAmount(data){
+  try{
+    if(data.quote && data.quote.output && data.quote.output.amount) return data.quote.output.amount;
+    if(data.output && data.output.amount) return data.output.amount;
+    if(data.quote && data.quote.amountOut) return data.quote.amountOut;
+  }catch(e){}
+  return null;
+}
+
+async function fetchUniswapQuote(token){
+  const apiKey = document.getElementById("uniKey-"+token).value.trim();
+  const amountEth = parseFloat(document.getElementById("uniAmount-"+token).value);
+  const msgEl = document.getElementById("uni-msg-"+token);
+  const swapBtn = document.getElementById("uniSwapBtn-"+token);
+  swapBtn.disabled = true; swapBtn.style.opacity = "0.5";
+
+  if(!apiKey){ msgEl.textContent = "Paste a free Uniswap API key first — get one at developers.uniswap.org/dashboard."; return; }
+  if(!wallet.address){ msgEl.textContent = "Connect your wallet first."; return; }
+  if(wallet.chainId !== "0x1"){ msgEl.textContent = "Switch to Ethereum Mainnet first (button above)."; return; }
+  if(!amountEth || amountEth<=0){ msgEl.textContent = "Enter an ETH amount greater than 0."; return; }
+
+  msgEl.textContent = "Fetching quote from Uniswap…";
+  try{
+    const amountWei = BigInt(Math.round(amountEth * 1e18)).toString();
+    const res = await fetch("https://trade-api.gateway.uniswap.org/v1/quote", {
+      method: "POST",
+      headers: { "Content-Type":"application/json", "Accept":"application/json", "x-api-key": apiKey },
+      body: JSON.stringify({
+        tokenIn: NATIVE_ETH_PLACEHOLDER,
+        tokenOut: USDC_ETH_MAINNET,
+        tokenInChainId: 1,
+        tokenOutChainId: 1,
+        type: "EXACT_INPUT",
+        amount: amountWei,
+        swapper: wallet.address,
+        slippageTolerance: 0.5,
+      })
+    });
+    if(!res.ok) throw new Error("HTTP " + res.status + " — check your API key");
+    const data = await res.json();
+    uniswapState[token] = { apiKey, quoteResponse: data };
+
+    const outAmount = extractQuoteOutputAmount(data);
+    if(outAmount){
+      const usdcOut = (Number(outAmount)/1e6).toFixed(2);
+      msgEl.innerHTML = `Quote: ~${amountEth} ETH → <b>${usdcOut} USDC</b>. Review carefully in MetaMask before confirming.`;
+    }else{
+      console.log("Uniswap quote response (unrecognized shape):", data);
+      msgEl.textContent = "Quote received — see browser console for details. You can still try confirming, but double-check the amounts MetaMask shows you.";
+    }
+    swapBtn.disabled = false; swapBtn.style.opacity = "1";
+  }catch(e){
+    msgEl.textContent = "Quote failed: " + e.message;
+  }
+}
+
+async function executeUniswapSwap(token){
+  const msgEl = document.getElementById("uni-msg-"+token);
+  const st = uniswapState[token];
+  if(!st || !st.quoteResponse){ msgEl.textContent = "Get a quote first."; return; }
+
+  msgEl.textContent = "Building transaction via Uniswap…";
+  try{
+    const quoteObj = st.quoteResponse.quote || st.quoteResponse;
+    const res = await fetch("https://trade-api.gateway.uniswap.org/v1/swap", {
+      method: "POST",
+      headers: { "Content-Type":"application/json", "Accept":"application/json", "x-api-key": st.apiKey },
+      body: JSON.stringify({ quote: quoteObj })
+    });
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    const swapTx = data.swap || data.transaction || data;
+
+    if(!swapTx || !swapTx.to || !swapTx.data){
+      console.log("Uniswap swap response (unrecognized shape):", data);
+      msgEl.textContent = "Could not find a valid transaction in the response — aborting for safety rather than guessing. See console.";
+      return;
+    }
+
+    msgEl.textContent = "Confirm the transaction in MetaMask…";
+    const txHash = await window.ethereum.request({
+      method: "eth_sendTransaction",
+      params: [{ from: wallet.address, to: swapTx.to, data: swapTx.data, value: toHexAmount(swapTx.value) }]
+    });
+    msgEl.innerHTML = `Submitted: <a href="https://etherscan.io/tx/${txHash}" target="_blank" style="color:var(--amber)">${txHash.slice(0,10)}…</a> — track it on Etherscan.`;
+  }catch(e){
+    msgEl.textContent = "Swap failed or was rejected: " + e.message;
+  }
+}
+
+function uniswapSwapUiHtml(token){
+  return `
+    <div style="margin-top:10px;border-top:1px dashed var(--line);padding-top:10px;">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">
+        One-tap swap (ETH → USDC) via Uniswap's official Trading API — still requires your confirmation in MetaMask.
+        First release: sell ETH for USDC only. Test with a small amount first.
+      </div>
+      <input id="uniKey-${token}" type="text" placeholder="Uniswap API key — free at developers.uniswap.org/dashboard"
+        style="width:100%;margin-bottom:6px;box-sizing:border-box;background:var(--panel);border:1px solid var(--line);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:11px;padding:7px;border-radius:5px;" />
+      <div style="display:flex;gap:6px;">
+        <input id="uniAmount-${token}" type="number" step="0.001" min="0" placeholder="ETH amount"
+          style="flex:1;background:var(--panel);border:1px solid var(--line);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:11px;padding:7px;border-radius:5px;" />
+        <button onclick="fetchUniswapQuote('${token}')"
+          style="background:transparent;border:1px solid var(--amber-dim);color:var(--amber);font-family:'IBM Plex Mono',monospace;font-size:11px;padding:7px 10px;border-radius:5px;cursor:pointer;">Get quote</button>
+      </div>
+      <button id="uniSwapBtn-${token}" onclick="executeUniswapSwap('${token}')" disabled
+        style="width:100%;margin-top:6px;background:var(--amber);color:#1a1200;font-weight:700;border:none;font-family:'IBM Plex Mono',monospace;font-size:11.5px;padding:9px;border-radius:6px;cursor:pointer;opacity:0.5;">Confirm swap in MetaMask</button>
+      <div id="uni-msg-${token}" style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5;"></div>
     </div>
   `;
 }
@@ -467,8 +600,54 @@ async function fetchAssetBundle(asset){
 }
 
 /* ============================================================
-   SENTIMENT: CryptoPanic (news) + Reddit (social), best-effort in-browser
+   DERIVATIVES: funding rate + open interest, Binance USDS-M futures (public,
+   no key). Only assets with an active Binance futures market will have this —
+   micro-caps mostly won't, and we degrade silently (like order book depth) when
+   there's no futures market rather than showing an error.
    ============================================================ */
+async function fetchDerivatives(asset){
+  if(!asset.binance) return null; // no Binance spot symbol -> essentially never has futures either
+  const sym = asset.binance;
+  try{
+    const [premium, oiNow, oiHist] = await Promise.all([
+      fetchJSON(`https://fapi.binance.com/fapi/v1/premiumIndex?symbol=${sym}`, 6000, 0),
+      fetchJSON(`https://fapi.binance.com/fapi/v1/openInterest?symbol=${sym}`, 6000, 0),
+      fetchJSON(`https://fapi.binance.com/futures/data/openInterestHist?symbol=${sym}&period=1h&limit=25`, 6000, 0),
+    ]);
+    const fundingRate = parseFloat(premium.lastFundingRate);
+    const oiCurrent = parseFloat(oiNow.openInterest);
+    let oiChangePct = null;
+    if(Array.isArray(oiHist) && oiHist.length>=2){
+      const oldOi = parseFloat(oiHist[0].sumOpenInterest);
+      const newOi = parseFloat(oiHist[oiHist.length-1].sumOpenInterest);
+      if(oldOi>0) oiChangePct = ((newOi-oldOi)/oldOi)*100;
+    }
+    if(Number.isNaN(fundingRate) || Number.isNaN(oiCurrent)) return null;
+    return { fundingRate, oiCurrent, oiChangePct };
+  }catch(e){
+    return null; // no futures market for this asset, or the call failed — quietly skip
+  }
+}
+
+function buildDerivativesVotes(deriv, pctChange, trend1h){
+  if(!deriv) return [];
+  const votes = [];
+  const frPct = deriv.fundingRate*100;
+
+  let fundingVote = 0;
+  if(frPct > 0.05) fundingVote = -1;      // crowded longs paying a premium -> contrarian bearish
+  else if(frPct < -0.03) fundingVote = 1; // crowded shorts -> contrarian bullish
+  votes.push({ name:"Funding rate", val:fundingVote, weight: fundingVote===0 ? 0 : 0.75 });
+
+  if(deriv.oiChangePct != null){
+    const priceDir = pctChange>=0 ? 1 : -1;
+    let oiVote = 0;
+    if(deriv.oiChangePct > 3) oiVote = priceDir;       // new money confirming the move
+    else if(deriv.oiChangePct < -3) oiVote = -priceDir; // position unwind / weaker conviction
+    votes.push({ name:"Open interest", val:oiVote, weight: oiVote===0 ? 0 : 0.75 });
+  }
+  return votes;
+}
 async function fetchCryptoPanic(token, key){
   if(!key) return { sentiment:50, status:"no key provided" };
   const url = `https://cryptopanic.com/api/v1/posts/?auth_token=${encodeURIComponent(key)}&currencies=${token}&public=true`;
@@ -636,6 +815,57 @@ function computeSpreadPct(depth){
   return ((bestAsk-bestBid)/mid)*100;
 }
 
+/* ADX (Average Directional Index), Wilder's original method. This does NOT vote
+   bullish/bearish itself — it measures whether a trend exists at all. We use it
+   to discount trend-following votes (EMA trend, Ichimoku) when the market is
+   choppy/range-bound, which is when trend-followers whipsaw the most. */
+function computeADX(highs, lows, closes, period=14){
+  const n = highs.length;
+  if(n < period*2+1) return { adx:20, regime:"Unclear (short history)", multiplier:0.7 };
+
+  const plusDM=[], minusDM=[], tr=[];
+  for(let i=1;i<n;i++){
+    const upMove = highs[i]-highs[i-1];
+    const downMove = lows[i-1]-lows[i];
+    plusDM.push((upMove>downMove && upMove>0) ? upMove : 0);
+    minusDM.push((downMove>upMove && downMove>0) ? downMove : 0);
+    tr.push(Math.max(highs[i]-lows[i], Math.abs(highs[i]-closes[i-1]), Math.abs(lows[i]-closes[i-1])));
+  }
+
+  function wilderSmooth(arr, period){
+    const out = [];
+    let sum = 0;
+    for(let i=0;i<period;i++) sum += arr[i];
+    out.push(sum);
+    for(let i=period;i<arr.length;i++){
+      out.push(out[out.length-1] - (out[out.length-1]/period) + arr[i]);
+    }
+    return out;
+  }
+
+  const smTR = wilderSmooth(tr, period);
+  const smPlusDM = wilderSmooth(plusDM, period);
+  const smMinusDM = wilderSmooth(minusDM, period);
+  const plusDI = smPlusDM.map((v,i)=> smTR[i]>0 ? 100*v/smTR[i] : 0);
+  const minusDI = smMinusDM.map((v,i)=> smTR[i]>0 ? 100*v/smTR[i] : 0);
+  const dx = plusDI.map((v,i)=>{
+    const sum = v+minusDI[i];
+    return sum>0 ? 100*Math.abs(v-minusDI[i])/sum : 0;
+  });
+
+  if(dx.length < period) return { adx:20, regime:"Unclear (short history)", multiplier:0.7 };
+  let adx = dx.slice(0,period).reduce((a,b)=>a+b,0)/period;
+  for(let i=period;i<dx.length;i++){ adx = (adx*(period-1)+dx[i])/period; }
+
+  let regime, multiplier;
+  if(adx<15){ regime="Choppy"; multiplier=0.4; }
+  else if(adx<25){ regime="Weak trend"; multiplier=0.7; }
+  else if(adx<40){ regime="Trending"; multiplier=1.0; }
+  else { regime="Strong trend"; multiplier=1.15; }
+
+  return { adx, regime, multiplier, plusDI:last(plusDI), minusDI:last(minusDI) };
+}
+
 /* Ichimoku Cloud: classic 9/26/52 periods. Simplified for scoring purposes —
    we use the current (non-forward-shifted) cloud position rather than a full
    plotted cloud, which is enough to gauge trend/momentum agreement. */
@@ -750,6 +980,8 @@ function scoreAsset(bundle){
 
   const ichimoku = computeIchimoku(h1, l1, c1);
   const fib = computeFibonacci(swingLow, swingHigh, lastClose, trend1h);
+  const adxRes = computeADX(h1, l1, c1, 14);
+  const adxMult = adxRes.multiplier;
 
   let obVote = 0, obImbalance = null;
   if(depth && depth.bids.length && depth.asks.length){
@@ -760,13 +992,13 @@ function scoreAsset(bundle){
   }
 
   const votes = [
-    { name:"1h trend",   val:trend1h,  weight:1 },
-    { name:"4h trend",   val:trend4h,  weight: trend4h===0 ? 0 : 1.5 },
+    { name:"1h trend",   val:trend1h,  weight:1*adxMult },
+    { name:"4h trend",   val:trend4h,  weight: (trend4h===0 ? 0 : 1.5)*adxMult },
     { name:"RSI(14)",    val:rsiVote,  weight:1 },
     { name:"StochRSI",   val:stochVote, weight:0.75 },
     { name:"MACD",       val:macdVote, weight:1 },
     { name:"Bollinger",  val:bbVote,   weight:0.75 },
-    { name:"Ichimoku",   val:ichimoku.vote, weight: ichimoku.vote===0 ? 0 : 1 },
+    { name:"Ichimoku",   val:ichimoku.vote, weight: (ichimoku.vote===0 ? 0 : 1)*adxMult },
     { name:"Fib golden pocket", val:fib.vote, weight: fib.vote===0 ? 0 : 1 },
   ];
   if(obImbalance!==null) votes.push({ name:"Order-book", val:obVote, weight:1 });
@@ -775,7 +1007,7 @@ function scoreAsset(bundle){
   votes.forEach(v=>{ total += v.val*v.weight; wsum += v.weight; });
   const rawScore = wsum>0 ? (total/wsum)*100 : 0;
 
-  return { rawScore, votes, rsiVal, stochRsiVal, macdHist:hLast, bb, atrVal, vwapVal, poc:vp.poc, trend1h, trend4h, obImbalance, swingHigh, swingLow, ichimoku, fib };
+  return { rawScore, votes, rsiVal, stochRsiVal, macdHist:hLast, bb, atrVal, vwapVal, poc:vp.poc, trend1h, trend4h, obImbalance, swingHigh, swingLow, ichimoku, fib, adx:adxRes };
 }
 
 function labelFromScore(score, prevLabel){
@@ -931,7 +1163,10 @@ function ensureCards(){
         <div class="chart-label">Suggested levels</div>
         <div class="reco-box" id="reco-${t}">—</div>
 
-        <div class="dex-box" id="dex-box-${t}" style="display:${DEX_LINKS[t] ? "block" : "none"};"></div>
+        <div class="dex-box" id="dex-box-${t}" style="display:${DEX_LINKS[t] ? "block" : "none"};">
+          <div id="dex-live-${t}"></div>
+          ${t==="ETH" ? uniswapSwapUiHtml(t) : ""}
+        </div>
       </div>
     `;
     grid.appendChild(el);
@@ -1073,7 +1308,7 @@ function sentimentSourceNote(sent){
   return `${p} · ${r} · X/Telegram: use .py script`;
 }
 
-function renderAssetCard(asset, bundle, scored, sent, smoothed, label, labelSince, pctChange, volRatio, whaleReasons, risk){
+function renderAssetCard(asset, bundle, scored, sent, smoothed, label, labelSince, pctChange, volRatio, whaleReasons, risk, allVotes, deriv){
   const t = asset.token;
   const card = document.getElementById("card-"+t);
   const cssKey = label.toLowerCase().replace(/\s+/g,"");
@@ -1114,7 +1349,7 @@ function renderAssetCard(asset, bundle, scored, sent, smoothed, label, labelSinc
   const mins = Math.floor((Date.now()-labelSince)/60000);
   document.getElementById("stable-"+t).textContent = mins<1 ? "just changed" : `stable ${mins}m`;
 
-  document.getElementById("reason-"+t).innerHTML = buildReasonText(scored.votes) +
+  document.getElementById("reason-"+t).innerHTML = buildReasonText(allVotes) +
     `<br/><span style="opacity:0.65">Sentiment: ${sentimentSourceNote(sent)}</span>`;
 
   document.getElementById("indicators-"+t).innerHTML = `
@@ -1125,11 +1360,14 @@ function renderAssetCard(asset, bundle, scored, sent, smoothed, label, labelSinc
     <div><span>ATR(14)</span><b>${scored.atrVal.toFixed(6)}</b></div>
     <div><span>VWAP (rolling)</span><b>$${formatPrice(scored.vwapVal)}</b></div>
     <div><span>Volume POC</span><b>$${formatPrice(scored.poc)}</b></div>
+    <div><span>ADX(14)</span><b>${scored.adx.adx.toFixed(1)} — ${scored.adx.regime}</b></div>
     <div><span>Ichimoku</span><b>${scored.ichimoku.position}</b></div>
     <div><span>Fib golden pocket</span><b>$${formatPrice(Math.min(scored.fib.l618,scored.fib.l500))}\u2013$${formatPrice(Math.max(scored.fib.l618,scored.fib.l500))}${scored.fib.inGoldenPocket?" (in zone)":""}</b></div>
     <div><span>1h / 4h trend</span><b>${scored.trend1h>0?"up":"down"} / ${scored.trend4h===0?"n/a":(scored.trend4h>0?"up":"down")}</b></div>
     <div><span>Order-book skew</span><b>${scored.obImbalance===null?"n/a":(scored.obImbalance*100).toFixed(1)+"%"}</b></div>
     <div><span>Support / Resist.</span><b>$${formatPrice(scored.swingLow)} / $${formatPrice(scored.swingHigh)}</b></div>
+    <div><span>Funding rate (8h)</span><b>${deriv ? (deriv.fundingRate*100>=0?"+":"")+(deriv.fundingRate*100).toFixed(4)+"%" : "no futures market"}</b></div>
+    <div><span>Open interest Δ</span><b>${deriv && deriv.oiChangePct!=null ? (deriv.oiChangePct>=0?"+":"")+deriv.oiChangePct.toFixed(1)+"%" : "n/a"}</b></div>
   `;
 
   const reco = buildRecommendation(label, bundle.price, scored.atrVal, scored.trend1h, scored.trend4h, scored.swingLow, scored.swingHigh);
@@ -1179,14 +1417,27 @@ async function refreshAsset(asset, panicKey){
 
   try{
     const bundle = await fetchAssetBundle(asset);
-    const sent = await fetchCombinedSentiment(t, panicKey);
     const scored = scoreAsset(bundle);
 
-    let rawScore = scored.rawScore;
+    const closes1h = bundle.ohlcv1h.closes;
+    const pctChange = ((last(closes1h) - closes1h[closes1h.length-2]) / closes1h[closes1h.length-2]) * 100;
+    lastPrices[t] = { price: bundle.price, pctChange };
+
+    const [sent, deriv] = await Promise.all([
+      fetchCombinedSentiment(t, panicKey),
+      fetchDerivatives(asset),
+    ]);
+
+    const allVotes = scored.votes.slice();
     if(sent.status === "ok"){
       const sentVote = sent.sentiment>55 ? 1 : (sent.sentiment<45 ? -1 : 0);
-      rawScore = (rawScore*4 + sentVote*100) / 5;
+      allVotes.push({ name:"Sentiment", val:sentVote, weight: sentVote===0 ? 0 : 1 });
     }
+    allVotes.push(...buildDerivativesVotes(deriv, pctChange, scored.trend1h));
+
+    let total=0, wsum=0;
+    allVotes.forEach(v=>{ total += v.val*v.weight; wsum += v.weight; });
+    const rawScore = wsum>0 ? (total/wsum)*100 : 0;
 
     const prevSmoothed = STATE[t].smoothed;
     const smoothed = prevSmoothed==null ? rawScore : (prevSmoothed*0.65 + rawScore*0.35);
@@ -1198,10 +1449,6 @@ async function refreshAsset(asset, panicKey){
       STATE[t].labelSince = Date.now();
     }
 
-    const closes1h = bundle.ohlcv1h.closes;
-    const pctChange = ((last(closes1h) - closes1h[closes1h.length-2]) / closes1h[closes1h.length-2]) * 100;
-    lastPrices[t] = { price: bundle.price, pctChange };
-
     const vols = bundle.ohlcv1h.vols;
     const volRatio = vols.length>=21 ? last(vols) / (vols.slice(-21,-1).reduce((a,b)=>a+b,0)/20) : 1;
 
@@ -1210,7 +1457,7 @@ async function refreshAsset(asset, panicKey){
     const atrPct = (scored.atrVal/bundle.price)*100;
     const risk = computeRisk(atrPct, spreadPct, whaleReasons.length>0, bundle.exchangeName);
 
-    renderAssetCard(asset, bundle, scored, sent, smoothed, STATE[t].label, STATE[t].labelSince, pctChange, volRatio, whaleReasons, risk);
+    renderAssetCard(asset, bundle, scored, sent, smoothed, STATE[t].label, STATE[t].labelSince, pctChange, volRatio, whaleReasons, risk, allVotes, deriv);
   }catch(e){
     renderAssetError(t, e);
   }

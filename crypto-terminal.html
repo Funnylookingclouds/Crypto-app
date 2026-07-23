@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Portfolio Signal Terminal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --void:#0B0F14;
+    --panel:#121A24;
+    --panel-2:#0F151D;
+    --line:#223040;
+    --amber:#E8A33D;
+    --amber-dim:#8A6323;
+    --green:#3ECF8E;
+    --red:#FF5C5C;
+    --text:#E7EDF3;
+    --muted:#7C8B9C;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--void);color:var(--text);font-family:'IBM Plex Sans',sans-serif;}
+  ::selection{background:var(--amber);color:#1a1200;}
+
+  /* ---- ticker tape (signature element) ---- */
+  .tape-wrap{
+    background:var(--panel-2);
+    border-bottom:1px solid var(--line);
+    overflow:hidden;
+    white-space:nowrap;
+    position:relative;
+    height:34px;
+  }
+  .tape-wrap::before, .tape-wrap::after{
+    content:"";
+    position:absolute; top:0; bottom:0; width:36px; z-index:2;
+  }
+  .tape-wrap::before{ left:0; background:linear-gradient(90deg,var(--panel-2),transparent); }
+  .tape-wrap::after{ right:0; background:linear-gradient(270deg,var(--panel-2),transparent); }
+  .tape{
+    display:inline-flex;
+    align-items:center;
+    height:34px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12.5px;
+    animation:scroll 32s linear infinite;
+    will-change:transform;
+  }
+  .tape span{ padding:0 22px; color:var(--muted); border-right:1px solid var(--line); display:inline-flex; gap:8px; }
+  .tape span b{ color:var(--text); font-weight:600; }
+  .tape span.up{ color:var(--green); }
+  .tape span.down{ color:var(--red); }
+  @keyframes scroll{ 0%{transform:translateX(0);} 100%{transform:translateX(-50%);} }
+  @media (prefers-reduced-motion: reduce){ .tape{ animation:none; } }
+
+  header{
+    padding:20px 20px 14px;
+    border-bottom:1px solid var(--line);
+  }
+  .brand{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:20px;
+    font-weight:700;
+    letter-spacing:0.02em;
+    color:var(--text);
+  }
+  .brand .dot{ color:var(--amber); }
+  .sub{ color:var(--muted); font-size:12.5px; margin-top:3px; }
+
+  .controls{
+    display:flex; flex-wrap:wrap; gap:10px; margin-top:16px; align-items:center;
+  }
+  .controls input, .controls select, .controls button{
+    background:var(--panel); border:1px solid var(--line); color:var(--text);
+    font-family:'IBM Plex Mono',monospace; font-size:12.5px;
+    padding:8px 10px; border-radius:6px; outline:none;
+  }
+  .controls input{ min-width:220px; flex:1; }
+  .controls button{
+    background:var(--amber); color:#1a1200; font-weight:700; border:none; cursor:pointer;
+  }
+  .controls button:active{ transform:translateY(1px); }
+  .controls button.secondary{
+    background:transparent; border:1px solid var(--amber-dim); color:var(--amber); font-weight:600;
+  }
+  .status{ font-size:11.5px; color:var(--muted); font-family:'IBM Plex Mono',monospace; }
+  .status b{ color:var(--text); }
+
+  main{ padding:18px 20px 40px; }
+  .grid{
+    display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px;
+  }
+  .card{
+    background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px;
+    display:flex; flex-direction:column; gap:10px; position:relative; overflow:hidden;
+  }
+  .card::before{
+    content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--line);
+  }
+  .card.buy::before{ background:var(--green); }
+  .card.sell::before{ background:var(--red); }
+  .card.hold::before{ background:var(--amber-dim); }
+
+  .card-top{ display:flex; justify-content:space-between; align-items:flex-start; }
+  .sym{ font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:16px; }
+  .exch{ font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; margin-top:2px;}
+
+  /* ---- big, unambiguous signal banner ---- */
+  .signal-banner{
+    display:flex; align-items:center; justify-content:center; gap:9px;
+    font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:17px; letter-spacing:0.04em;
+    padding:11px 10px; border-radius:8px; text-transform:uppercase;
+  }
+  .signal-banner .icon{ font-size:19px; line-height:1; }
+  .signal-banner.buy{ background:var(--green); color:#062217; box-shadow:0 0 0 1px rgba(62,207,142,0.5), 0 0 18px rgba(62,207,142,0.25); }
+  .signal-banner.sell{ background:var(--red); color:#2b0303; box-shadow:0 0 0 1px rgba(255,92,92,0.5), 0 0 18px rgba(255,92,92,0.25); }
+  .signal-banner.hold{ background:transparent; color:var(--muted); border:1.5px dashed var(--line); }
+  .signal-banner.err{ background:transparent; color:var(--muted); border:1.5px solid var(--line); font-size:13px; text-transform:none; letter-spacing:0; }
+  @keyframes pulse{ 0%,100%{filter:brightness(1);} 50%{filter:brightness(1.18);} }
+  .signal-banner.buy, .signal-banner.sell{ animation:pulse 2.2s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce){ .signal-banner.buy, .signal-banner.sell{ animation:none; } }
+
+  .netwarn{
+    display:none; margin:14px 20px 0; padding:12px 14px; border-radius:8px;
+    background:rgba(232,163,61,0.08); border:1px solid var(--amber-dim); color:var(--amber);
+    font-size:12.5px; font-family:'IBM Plex Mono',monospace; line-height:1.6;
+  }
+  .netwarn.show{ display:block; }
+
+  .price{ font-family:'IBM Plex Mono',monospace; font-size:24px; font-weight:600; }
+  .change{ font-family:'IBM Plex Mono',monospace; font-size:13px; }
+  .change.up{ color:var(--green); } .change.down{ color:var(--red); }
+
+  .metric-row{ display:flex; flex-direction:column; gap:5px; }
+  .metric-label{ display:flex; justify-content:space-between; font-size:11px; color:var(--muted); font-family:'IBM Plex Mono',monospace; }
+  .bar-track{ height:5px; background:var(--panel-2); border-radius:3px; overflow:hidden; border:1px solid var(--line); }
+  .bar-fill{ height:100%; border-radius:3px; }
+
+  .reason{ font-size:12px; color:var(--muted); line-height:1.5; border-top:1px dashed var(--line); padding-top:9px; margin-top:2px; }
+  .reason b{ color:var(--text); }
+
+  footer{
+    padding:16px 20px 30px; color:var(--muted); font-size:11.5px; border-top:1px solid var(--line);
+    font-family:'IBM Plex Mono',monospace; line-height:1.6;
+  }
+  footer a{ color:var(--amber); }
+  .skeleton{ opacity:0.45; }
+  a.linklike{ color:var(--amber); cursor:pointer; text-decoration:underline; }
+</style>
+</head>
+<body>
+
+<div class="tape-wrap"><div class="tape" id="tape"></div></div>
+
+<header>
+  <div class="brand"><span class="dot">◆</span> PORTFOLIO SIGNAL TERMINAL</div>
+  <div class="sub">Live exchange data via public REST (Binance → KuCoin → Gate.io fallback). No trades are placed — signals only.</div>
+  <div class="controls">
+    <input id="panicKey" type="text" placeholder="Optional: CryptoPanic API key (cryptopanic.com/developers/api)" />
+    <select id="interval">
+      <option value="30000">Refresh: 30s</option>
+      <option value="60000" selected>Refresh: 60s</option>
+      <option value="120000">Refresh: 2m</option>
+      <option value="300000">Refresh: 5m</option>
+    </select>
+    <button id="refreshBtn">Refresh now</button>
+    <button class="secondary" id="autoBtn">Auto: ON</button>
+  </div>
+  <div class="status" style="margin-top:10px;">Last update: <b id="lastUpdate">—</b> · Sources per asset shown on each card</div>
+</header>
+
+<div class="netwarn" id="netwarn">
+  ⚠ No exchange responded for any asset. This usually means the browser blocked outbound requests —
+  common when a file is opened in a sandboxed local-file viewer (e.g. Edge's "external-file" preview on iOS).
+  Fix: open this file directly in Safari/Chrome (long-press → Open in Safari), or host it as a real URL
+  (e.g. upload to GitHub and enable GitHub Pages), then reload.
+</div>
+
+<main>
+  <div class="grid" id="grid"></div>
+</main>
+
+<footer>
+  Heuristic signals (volume-anomaly, breakout, sentiment-overlap rules) are informational only — not financial advice.<br/>
+  CryptoPanic's public API does not reliably allow direct browser requests (CORS). If sentiment shows "unavailable", run the companion
+  <b>realtime_crypto_agent.py</b> script instead, which calls it server-side with your key.
+</footer>
+
+<script>
+/* ---------------- config ---------------- */
+const PORTFOLIO = [
+  { token:"BTC",  binance:"BTCUSDT",  kucoin:"BTC-USDT",  gate:"BTC_USDT"  },
+  { token:"ETH",  binance:"ETHUSDT",  kucoin:"ETH-USDT",  gate:"ETH_USDT"  },
+  { token:"XLM",  binance:"XLMUSDT",  kucoin:"XLM-USDT",  gate:"XLM_USDT"  },
+  { token:"HBAR", binance:"HBARUSDT", kucoin:"HBAR-USDT", gate:"HBAR_USDT" },
+  { token:"FLR",  binance:"FLRUSDT",  kucoin:"FLR-USDT",  gate:"FLR_USDT"  },
+  { token:"SGB",  binance:null,       kucoin:"SGB-USDT",  gate:"SGB_USDT"  },
+  { token:"SHX",  binance:null,       kucoin:"SHX-USDT",  gate:"SHX_USDT"  },
+];
+
+let autoOn = true;
+let timer = null;
+let lastPrices = {}; // for tape coloring
+
+/* ---------------- exchange fetchers (each returns {closes[], vols[], price, changePct, exchangeName} or throws) ---------------- */
+
+let totalAttempts = 0;
+let totalFailures = 0;
+
+async function fetchJSON(url, ms = 7000){
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try{
+    const res = await fetch(url, { signal: controller.signal, mode: "cors" });
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  }catch(e){
+    if(e.name === "AbortError") throw new Error("timed out (no response in " + (ms/1000) + "s)");
+    // "Failed to fetch" / "Load failed" almost always means the request never left the browser:
+    // blocked by CORS, no network, or (very commonly on mobile) opened from a sandboxed local-file viewer.
+    throw new Error("network blocked (" + e.message + ")");
+  }finally{
+    clearTimeout(timer);
+  }
+}
+
+async function fromBinance(sym){
+  const ticker = await fetchJSON(`https://api.binance.com/api/v3/ticker/24hr?symbol=${sym}`);
+  const klines = await fetchJSON(`https://api.binance.com/api/v3/klines?symbol=${sym}&interval=1h&limit=30`);
+  if(!Array.isArray(klines) || klines.length < 3) throw new Error("insufficient candle data");
+  const closes = klines.map(k => parseFloat(k[4]));
+  const vols   = klines.map(k => parseFloat(k[5]));
+  return { closes, vols, price: parseFloat(ticker.lastPrice), exchangeName:"Binance" };
+}
+
+async function fromKucoin(sym){
+  const stats = await fetchJSON(`https://api.kucoin.com/api/v1/market/stats?symbol=${sym}`);
+  const now = Math.floor(Date.now()/1000);
+  const from = now - 3600*30;
+  const klines = await fetchJSON(`https://api.kucoin.com/api/v1/market/candles?type=1hour&symbol=${sym}&startAt=${from}&endAt=${now}`);
+  if(!klines.data || klines.data.length < 3) throw new Error("insufficient candle data");
+  // kucoin candles: [time, open, close, high, low, volume, turnover] newest first
+  const rows = [...klines.data].reverse();
+  const closes = rows.map(r => parseFloat(r[2]));
+  const vols   = rows.map(r => parseFloat(r[5]));
+  const price = parseFloat(stats.data.last);
+  return { closes, vols, price, exchangeName:"KuCoin" };
+}
+
+async function fromGate(sym){
+  const ticker = await fetchJSON(`https://api.gateio.ws/api/v4/spot/tickers?currency_pair=${sym}`);
+  const klines = await fetchJSON(`https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=${sym}&interval=1h&limit=30`);
+  if(!Array.isArray(klines) || klines.length < 3) throw new Error("insufficient candle data");
+  // gate candles: [ts, volume, close, high, low, open] oldest first
+  const closes = klines.map(k => parseFloat(k[2]));
+  const vols   = klines.map(k => parseFloat(k[1]));
+  const price = ticker[0] ? parseFloat(ticker[0].last) : closes[closes.length-1];
+  return { closes, vols, price, exchangeName:"Gate.io" };
+}
+
+async function fetchMarketData(asset){
+  const attempts = [];
+  if(asset.binance) attempts.push(["Binance", () => fromBinance(asset.binance)]);
+  if(asset.kucoin)  attempts.push(["KuCoin",  () => fromKucoin(asset.kucoin)]);
+  if(asset.gate)    attempts.push(["Gate.io", () => fromGate(asset.gate)]);
+
+  const attemptErrors = [];
+  totalAttempts++;
+  for(const [name, fn] of attempts){
+    try{ return await fn(); }
+    catch(e){ attemptErrors.push(`${name}: ${e.message}`); }
+  }
+  totalFailures++;
+  throw new Error(attemptErrors.join(" | ") || "no exchange source configured");
+}
+
+/* ---------------- indicators ---------------- */
+function computeIndicators(closes, vols){
+  const n = closes.length;
+  const window = Math.min(20, n-1);
+  const recentVols = vols.slice(n-1-window, n-1); // last `window` candles before current
+  const avgVol = recentVols.reduce((a,b)=>a+b,0) / (recentVols.length || 1);
+  const latestVol = vols[n-1];
+  const volRatio = avgVol > 0 ? latestVol/avgVol : 1;
+  const pctChange = ((closes[n-1] - closes[n-2]) / closes[n-2]) * 100;
+  return { volRatio, pctChange };
+}
+
+/* ---------------- sentiment ---------------- */
+async function fetchSentiment(token, key){
+  if(!key) return { sentiment:50, status:"no key provided" };
+  const url = `https://cryptopanic.com/api/v1/posts/?auth_token=${encodeURIComponent(key)}&currencies=${token}&public=true`;
+  try{
+    const res = await fetch(url);
+    if(!res.ok) throw new Error("http " + res.status);
+    const data = await res.json();
+    let bullish=0, bearish=0;
+    (data.results||[]).slice(0,10).forEach(p=>{
+      const v = p.votes || {};
+      bullish += (v.positive||0) + (v.liked||0);
+      bearish += (v.negative||0) + (v.disliked||0);
+    });
+    const total = bullish+bearish;
+    const score = total>0 ? Math.round((bullish/total)*100) : 50;
+    return { sentiment:score, status:"ok", newsCount:(data.results||[]).length };
+  }catch(e){
+    return { sentiment:50, status:"unavailable (browser CORS or network) — use the .py script for live sentiment" };
+  }
+}
+
+/* ---------------- signal logic (mirrors the original strategy rules) ---------------- */
+function computeSignal(volRatio, pctChange, sentiment){
+  if(volRatio > 2.5 && Math.abs(pctChange) < 0.5){
+    return { signal:"BUY", reason:`Volume ${volRatio.toFixed(1)}x normal while price is flat — possible accumulation.` };
+  }
+  if(pctChange > 2.0 && volRatio < 1.0){
+    return { signal:"SELL", reason:`Price up ${pctChange.toFixed(2)}% on weak volume (${volRatio.toFixed(2)}x) — breakout looks unconfirmed.` };
+  }
+  if(pctChange > 3.0 && volRatio > 2.0 && sentiment > 75){
+    return { signal:"SELL", reason:`Sharp move + heavy volume + hype score ${sentiment}/100 — overheated, risk of reversal.` };
+  }
+  if(pctChange > 1.0 && volRatio > 1.5 && sentiment > 55){
+    return { signal:"BUY", reason:`Solid volume (${volRatio.toFixed(1)}x) with positive sentiment (${sentiment}/100) backing the move.` };
+  }
+  return { signal:"HOLD", reason:"Volume and price action within normal range." };
+}
+
+/* ---------------- rendering ---------------- */
+function ensureCards(){
+  const grid = document.getElementById('grid');
+  grid.innerHTML = "";
+  PORTFOLIO.forEach(a=>{
+    const el = document.createElement('div');
+    el.className = "card hold skeleton";
+    el.id = "card-" + a.token;
+    el.innerHTML = `
+      <div class="signal-banner hold" id="badge-${a.token}"><span class="icon">●</span><span>Connecting…</span></div>
+      <div class="card-top">
+        <div><div class="sym">$${a.token}</div><div class="exch" id="exch-${a.token}">connecting…</div></div>
+      </div>
+      <div><div class="price" id="price-${a.token}">—</div><div class="change" id="change-${a.token}">—</div></div>
+      <div class="metric-row">
+        <div class="metric-label"><span>Volume vs 20h avg</span><span id="volnum-${a.token}">—</span></div>
+        <div class="bar-track"><div class="bar-fill" id="volbar-${a.token}" style="width:0%;background:var(--amber);"></div></div>
+      </div>
+      <div class="metric-row">
+        <div class="metric-label"><span>Sentiment</span><span id="sentnum-${a.token}">—</span></div>
+        <div class="bar-track"><div class="bar-fill" id="sentbar-${a.token}" style="width:50%;background:var(--amber-dim);"></div></div>
+      </div>
+      <div class="reason" id="reason-${a.token}">Fetching live data…</div>
+    `;
+    grid.appendChild(el);
+  });
+}
+
+function renderTape(){
+  const tape = document.getElementById('tape');
+  const items = PORTFOLIO.map(a=>{
+    const p = lastPrices[a.token];
+    if(!p) return `<span>$${a.token} <b>…</b></span>`;
+    const cls = p.pctChange >= 0 ? "up" : "down";
+    const arrow = p.pctChange >= 0 ? "▲" : "▼";
+    return `<span class="${cls}">$${a.token} <b>${formatPrice(p.price)}</b> ${arrow} ${Math.abs(p.pctChange).toFixed(2)}%</span>`;
+  }).join("");
+  tape.innerHTML = items + items; // duplicate for seamless loop
+}
+
+function formatPrice(p){
+  if(p >= 100) return p.toFixed(2);
+  if(p >= 1) return p.toFixed(4);
+  return p.toFixed(6);
+}
+
+async function refreshAsset(asset, panicKey){
+  const t = asset.token;
+  try{
+    const md = await fetchMarketData(asset);
+    const { volRatio, pctChange } = computeIndicators(md.closes, md.vols);
+    const sent = await fetchSentiment(t, panicKey);
+    const { signal, reason } = computeSignal(volRatio, pctChange, sent.sentiment);
+
+    lastPrices[t] = { price: md.price, pctChange };
+
+    const card = document.getElementById("card-"+t);
+    card.classList.remove("skeleton","buy","sell","hold");
+    card.classList.add(signal.toLowerCase());
+
+    document.getElementById("exch-"+t).textContent = md.exchangeName + " · 1h";
+    document.getElementById("price-"+t).textContent = "$" + formatPrice(md.price);
+    const chEl = document.getElementById("change-"+t);
+    chEl.textContent = (pctChange>=0?"+":"") + pctChange.toFixed(2) + "% / 1h";
+    chEl.className = "change " + (pctChange>=0?"up":"down");
+
+    document.getElementById("volnum-"+t).textContent = volRatio.toFixed(2) + "x";
+    const volBar = document.getElementById("volbar-"+t);
+    volBar.style.width = Math.min(100, (volRatio/4)*100) + "%";
+    volBar.style.background = volRatio>2 ? "var(--red)" : (volRatio>1.3 ? "var(--amber)" : "var(--muted)");
+
+    document.getElementById("sentnum-"+t).textContent = sent.status==="ok" ? sent.sentiment+"/100" : "n/a";
+    const sentBar = document.getElementById("sentbar-"+t);
+    sentBar.style.width = sent.sentiment + "%";
+    sentBar.style.background = sent.sentiment>60 ? "var(--green)" : (sent.sentiment<40 ? "var(--red)" : "var(--amber-dim)");
+
+    const badge = document.getElementById("badge-"+t);
+    const ICONS = { BUY:"▲", SELL:"▼", HOLD:"●" };
+    const LABELS = { BUY:"BUY", SELL:"SELL", HOLD:"HOLD / WAIT" };
+    badge.className = "signal-banner " + signal.toLowerCase();
+    badge.innerHTML = `<span class="icon">${ICONS[signal]}</span><span>${LABELS[signal]}</span>`;
+
+    let reasonHtml = `<b>${signal}:</b> ${reason}`;
+    if(sent.status !== "ok") reasonHtml += `<br/><span style="opacity:0.7">Sentiment: ${sent.status}</span>`;
+    document.getElementById("reason-"+t).innerHTML = reasonHtml;
+
+  }catch(e){
+    const card = document.getElementById("card-"+t);
+    card.classList.remove("skeleton","buy","sell","hold");
+    document.getElementById("exch-"+t).textContent = "no source reachable";
+    const badgeEl = document.getElementById("badge-"+t);
+    badgeEl.className = "signal-banner err";
+    badgeEl.innerHTML = `<span class="icon">⚠</span><span>No live data</span>`;
+    document.getElementById("reason-"+t).textContent = "Could not fetch live data: " + e.message;
+  }
+}
+
+async function refreshAll(){
+  const panicKey = document.getElementById('panicKey').value.trim();
+  document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString() + " (fetching…)";
+  totalAttempts = 0;
+  totalFailures = 0;
+  await Promise.all(PORTFOLIO.map(a => refreshAsset(a, panicKey)));
+  renderTape();
+  document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+
+  const netwarn = document.getElementById('netwarn');
+  if(totalAttempts > 0 && totalFailures === totalAttempts){
+    netwarn.classList.add('show');
+  }else{
+    netwarn.classList.remove('show');
+  }
+}
+
+function scheduleAuto(){
+  if(timer) clearInterval(timer);
+  if(!autoOn) return;
+  const ms = parseInt(document.getElementById('interval').value, 10);
+  timer = setInterval(refreshAll, ms);
+}
+
+document.getElementById('refreshBtn').addEventListener('click', refreshAll);
+document.getElementById('interval').addEventListener('change', scheduleAuto);
+document.getElementById('autoBtn').addEventListener('click', (e)=>{
+  autoOn = !autoOn;
+  e.target.textContent = "Auto: " + (autoOn ? "ON" : "OFF");
+  scheduleAuto();
+});
+
+ensureCards();
+refreshAll();
+scheduleAuto();
+</script>
+</body>
+</html>

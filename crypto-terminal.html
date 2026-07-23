@@ -134,6 +134,7 @@
     <button class="secondary" id="autoBtn">Auto: ON</button>
   </div>
   <div class="status" style="margin-top:10px;">Last update: <b id="lastUpdate">—</b></div>
+  <div class="status" id="feargreed" style="margin-top:4px;">Market Fear &amp; Greed: —</div>
 </header>
 
 <div class="netwarn" id="netwarn">
@@ -152,8 +153,10 @@
   proof of manipulation, and none of this is financial advice. This page places no trades; it's read-only.<br/><br/>
   Sentiment blends CryptoPanic and Reddit's public search, fetched directly from your browser — both can show
   "unavailable" if the browser blocks the cross-origin request (common; not something this page controls).
-  X/Twitter and Telegram require authenticated, server-side API access and are only available through the
-  companion <b>realtime_crypto_agent.py</b> script, not this browser page.
+  The header's Fear &amp; Greed reading comes from CoinMarketCap's free keyless index (falling back to
+  alternative.me) — it's a market-wide gauge, not a per-token one, since CoinMarketCap's API doesn't expose
+  per-coin community sentiment. X/Twitter and Telegram require authenticated, server-side API access and are
+  only available through the companion <b>realtime_crypto_agent.py</b> script, not this browser page.
 </footer>
 
 <script>
@@ -181,7 +184,7 @@ const STATE = {};
 /* ============================================================
    NETWORK HELPERS
    ============================================================ */
-async function fetchJSON(url, ms = 7000){
+async function fetchJSON(url, ms = 7000, retries = 1){
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), ms);
   try{
@@ -189,6 +192,13 @@ async function fetchJSON(url, ms = 7000){
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   }catch(e){
+    clearTimeout(timeoutId);
+    // A single dropped request (weak signal, brief connectivity blip) shouldn't fail
+    // the whole exchange attempt — retry once after a short pause before giving up.
+    if(retries > 0 && e.name !== "AbortError"){
+      await new Promise(r => setTimeout(r, 400));
+      return fetchJSON(url, ms, retries - 1);
+    }
     if(e.name === "AbortError") throw new Error("timed out (" + (ms/1000) + "s)");
     throw new Error("network blocked (" + e.message + ")");
   }finally{
@@ -338,6 +348,25 @@ async function fetchRedditSentiment(token){
     return { sentiment, status:"ok" };
   }catch(e){
     return { sentiment:50, status:"unavailable (CORS/network)" };
+  }
+}
+
+/* CoinMarketCap doesn't expose per-coin community sentiment via API — only market-wide
+   indices. Its Fear & Greed Index has a genuine keyless (no key, no signup) endpoint,
+   so we show that as a market-wide gauge, with alternative.me as a fallback source. */
+async function fetchFearGreed(){
+  try{
+    const data = await fetchJSON("https://pro-api.coinmarketcap.com/trial-pro-api/v3/fear-and-greed/latest", 6000, 0);
+    const d = data.data;
+    return { value: d.value, label: d.value_classification, source: "CoinMarketCap" };
+  }catch(e){
+    try{
+      const data2 = await fetchJSON("https://api.alternative.me/fng/?limit=1&format=json", 6000, 0);
+      const d2 = data2.data[0];
+      return { value: parseInt(d2.value, 10), label: d2.value_classification, source: "Alternative.me" };
+    }catch(e2){
+      return null;
+    }
   }
 }
 
@@ -980,9 +1009,16 @@ async function refreshAll(){
   document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString() + " (fetching…)";
   totalAttempts = 0;
   totalFailures = 0;
-  await Promise.all(PORTFOLIO.map(a => refreshAsset(a, panicKey)));
+  const [fg] = await Promise.all([ fetchFearGreed(), Promise.all(PORTFOLIO.map(a => refreshAsset(a, panicKey))) ]);
   renderTape();
   document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+
+  const fgEl = document.getElementById('feargreed');
+  if(fg){
+    fgEl.textContent = `Market Fear & Greed: ${fg.value}/100 (${fg.label}) — ${fg.source}`;
+  }else{
+    fgEl.textContent = "Market Fear & Greed: unavailable (CORS/network)";
+  }
 
   const netwarn = document.getElementById('netwarn');
   if(totalAttempts > 0 && totalFailures === totalAttempts){

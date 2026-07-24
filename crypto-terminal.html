@@ -161,6 +161,10 @@
     </select>
     <button id="refreshBtn">Refresh now</button>
     <button class="secondary" id="autoBtn">Auto: ON</button>
+    <select id="sortMode">
+      <option value="priority" selected>Sort: Priority (strongest + freshest)</option>
+      <option value="portfolio">Sort: Portfolio order</option>
+    </select>
   </div>
   <div class="wallet-box" style="margin-top:6px;">
     <input id="customTicker" type="text" placeholder="Analyze any coin — e.g. SOL, or 'look into Solana'" style="flex:1;min-width:220px;background:var(--panel);border:1px solid var(--line);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12.5px;padding:8px 10px;border-radius:6px;" />
@@ -1351,6 +1355,35 @@ function allAssets(){
   return PORTFOLIO.concat(CUSTOM_ASSETS);
 }
 
+/* ============================================================
+   PRIORITY SORT: strongest buy/sell signal first, with a boost for
+   signals that changed recently. Reordering just moves existing DOM
+   nodes (appendChild on an attached node relocates it), so charts and
+   any in-progress state on a card survive the resort untouched.
+   ============================================================ */
+function computePriority(token){
+  const st = STATE[token];
+  if(!st || st.smoothed==null) return -9999; // no data yet / errored — sink to the bottom
+  const strength = Math.abs(st.smoothed); // 0-100, how far from neutral
+  const minutesSinceChange = st.labelSince ? (Date.now()-st.labelSince)/60000 : 9999;
+  const freshness = Math.max(0, 100 - minutesSinceChange*2); // full boost at 0m, fades to 0 by ~50m
+  return strength*0.8 + freshness*0.2;
+}
+
+function resortGrid(){
+  const grid = document.getElementById('grid');
+  const sortModeEl = document.getElementById('sortMode');
+  const mode = sortModeEl ? sortModeEl.value : "priority";
+  const tokens = allAssets().map(a=>a.token);
+  const ordered = mode==="priority"
+    ? tokens.slice().sort((a,b)=> computePriority(b) - computePriority(a))
+    : tokens;
+  ordered.forEach(t=>{
+    const card = document.getElementById("card-"+t);
+    if(card) grid.appendChild(card);
+  });
+}
+
 async function analyzeCustomCoin(){
   const input = document.getElementById("customTicker");
   const msgEl = document.getElementById("customMsg");
@@ -1374,6 +1407,7 @@ async function analyzeCustomCoin(){
   const panicKey = document.getElementById('panicKey').value.trim();
   await refreshAsset(asset, panicKey);
   renderTape();
+  resortGrid();
   msgEl.textContent = `Added $${ticker}. It'll now refresh automatically with everything else.`;
 }
 
@@ -1713,6 +1747,7 @@ async function refreshAll(){
   totalFailures = 0;
   const [fg] = await Promise.all([ fetchFearGreed(), Promise.all(allAssets().map(a => refreshAsset(a, panicKey))) ]);
   renderTape();
+  resortGrid();
   document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
 
   const fgEl = document.getElementById('feargreed');
@@ -1752,6 +1787,7 @@ document.getElementById('connectWalletBtn').addEventListener('click', connectWal
 document.getElementById('analyzeBtn').addEventListener('click', analyzeCustomCoin);
 document.getElementById('customTicker').addEventListener('keydown', (e)=>{ if(e.key==="Enter") analyzeCustomCoin(); });
 document.getElementById('interval').addEventListener('change', scheduleAuto);
+document.getElementById('sortMode').addEventListener('change', resortGrid);
 document.getElementById('autoBtn').addEventListener('click', (e)=>{
   autoOn = !autoOn;
   e.target.textContent = "Auto: " + (autoOn ? "ON" : "OFF");
